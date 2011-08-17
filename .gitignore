@@ -38,6 +38,8 @@ src/tests/test-qcdm-serial-port
 src/tests/test-sms
 policy/org.freedesktop.modem-manager.policy
 
+cli/mmcli
+
 libqcdm/tests/test-qcdm
 libwmc/tests/test-wmc
 

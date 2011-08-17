@@ -61,6 +61,10 @@ PKG_CHECK_MODULES(LIBMM,
                   glib-2.0 >= 2.30
                   gobject-2.0
                   gio-2.0)
+PKG_CHECK_MODULES(MMCLI,
+                  glib-2.0 >= 2.30
+                  gobject-2.0
+                  gio-2.0)
 
 PKG_CHECK_MODULES(GUDEV, gudev-1.0)
 AC_SUBST(GUDEV_CFLAGS)
@@ -194,6 +198,7 @@ docs/reference/Makefile
 docs/reference/api/Makefile
 docs/reference/api/version.xml
 libmm-glib/Makefile
+cli/Makefile
 ])
 AC_OUTPUT
 
