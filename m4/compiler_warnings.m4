@@ -9,7 +9,7 @@ if test "$GCC" = "yes" -a "$set_more_warnings" != "no"; then
 
 	for option in -Wmissing-declarations -Wmissing-prototypes \
 		      -Wdeclaration-after-statement -Wstrict-prototypes \
-		      -Wfloat-equal -Wno-unused-parameter -Wno-sign-compare \
+		      -Wno-unused-parameter -Wno-sign-compare \
 		      -fno-strict-aliasing; do
 		SAVE_CFLAGS="$CFLAGS"
 		CFLAGS="$CFLAGS $option"
