@@ -140,6 +140,8 @@ fi
 AC_CONFIG_FILES([
 Makefile
 marshallers/Makefile
+include/Makefile
+build-aux/Makefile
 libqcdm/Makefile
 libqcdm/src/Makefile
 libqcdm/tests/Makefile
