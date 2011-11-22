@@ -12,7 +12,10 @@ test_modem_helpers_CPPFLAGS = \
 	$(MM_CFLAGS) \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/src \
-	-I$(top_srcdir)/include
+	-I$(top_srcdir)/include \
+	-I$(top_builddir)/include \
+	-I$(top_srcdir)/libmm-common \
+	-I$(top_builddir)/libmm-common
 
 test_modem_helpers_LDADD = \
 	$(top_builddir)/src/libmodem-helpers.la \
@@ -25,7 +28,10 @@ test_charsets_CPPFLAGS = \
 	$(MM_CFLAGS) \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/src \
-	-I$(top_srcdir)/include
+	-I$(top_srcdir)/include \
+	-I$(top_builddir)/include \
+	-I$(top_srcdir)/libmm-common \
+	-I$(top_builddir)/libmm-common
 
 test_charsets_LDADD = \
 	$(top_builddir)/src/libmodem-helpers.la \
@@ -38,7 +44,10 @@ test_qcdm_serial_port_CPPFLAGS = \
 	$(MM_CFLAGS) \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/src \
-	-I$(top_srcdir)/include
+	-I$(top_srcdir)/include \
+	-I$(top_builddir)/include \
+	-I$(top_srcdir)/libmm-common \
+	-I$(top_builddir)/libmm-common
 
 test_qcdm_serial_port_LDADD = \
 	$(MM_LIBS) \
@@ -54,7 +63,10 @@ test_sms_CPPFLAGS = \
 	$(MM_CFLAGS) \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/src \
-	-I$(top_srcdir)/include
+	-I$(top_srcdir)/include \
+	-I$(top_builddir)/include \
+	-I$(top_srcdir)/libmm-common \
+	-I$(top_builddir)/libmm-common
 
 test_sms_LDADD = \
 	$(top_builddir)/src/libmodem-helpers.la \
