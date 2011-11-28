@@ -116,6 +116,8 @@ modem_manager_SOURCES = \
 	mm-base-modem.c \
 	mm-iface-modem.h \
 	mm-iface-modem.c \
+	mm-iface-modem-3gpp.h \
+	mm-iface-modem-3gpp.c \
 	mm-broadband-modem.h \
 	mm-broadband-modem.c \
 	mm-serial-parsers.c \
@@ -158,4 +160,3 @@ modem_manager_SOURCES = \
 #	mm-modem-location.h
 #	mm-modem-firmware.c
 #	mm-modem-firmware.h
-
