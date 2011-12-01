@@ -32,7 +32,8 @@ PLUGIN_COMMON_LINKER_FLAGS = \
 ########################################
 
 pkglib_LTLIBRARIES = \
-	libmm-plugin-generic.la
+	libmm-plugin-generic.la \
+	libmm-plugin-cinterion.la
 
 #pkglib_LTLIBRARIES = \
 #	libmm-plugin-generic.la \
@@ -52,8 +53,7 @@ pkglib_LTLIBRARIES = \
 #	libmm-plugin-x22x.la \
 #	libmm-plugin-linktop.la \
 #	libmm-plugin-samsung.la \
-#	libmm-plugin-wavecom.la \
-#	libmm-plugin-cinterion.la
+#	libmm-plugin-wavecom.la
 
 # Generic
 libmm_plugin_generic_la_SOURCES = \
@@ -228,16 +228,16 @@ libmm_plugin_generic_la_LDFLAGS = $(PLUGIN_COMMON_LINKER_FLAGS)
 #libmm_plugin_samsung_la_CPPFLAGS = $(PLUGIN_COMMON_COMPILER_FLAGS)
 #libmm_plugin_samsung_la_LDFLAGS = $(PLUGIN_COMMON_LINKER_FLAGS)
 #libmm_plugin_samsung_la_LIBADD = $(builddir)/libicera-utils.la
-#
-## Cinterion (previously Siemens) modem
-#libmm_plugin_cinterion_la_SOURCES = \
-#	mm-plugin-cinterion.c \
-#	mm-plugin-cinterion.h \
-#	mm-modem-cinterion-gsm.c \
-#	mm-modem-cinterion-gsm.h
-#libmm_plugin_cinterion_la_CPPFLAGS = $(PLUGIN_COMMON_COMPILER_FLAGS)
-#libmm_plugin_cinterion_la_LDFLAGS = $(PLUGIN_COMMON_LINKER_FLAGS)
-#
+
+# Cinterion (previously Siemens) modem
+libmm_plugin_cinterion_la_SOURCES = \
+	mm-plugin-cinterion.c \
+	mm-plugin-cinterion.h \
+	mm-broadband-modem-cinterion.c \
+	mm-broadband-modem-cinterion.h
+libmm_plugin_cinterion_la_CPPFLAGS = $(PLUGIN_COMMON_COMPILER_FLAGS)
+libmm_plugin_cinterion_la_LDFLAGS = $(PLUGIN_COMMON_LINKER_FLAGS)
+
 #
 #udevrulesdir = $(UDEV_BASE_DIR)/rules.d
 #udevrules_DATA = \
@@ -256,5 +256,3 @@ libmm_plugin_generic_la_LDFLAGS = $(PLUGIN_COMMON_LINKER_FLAGS)
 #EXTRA_DIST = \
 #	$(udevrules_DATA) \
 #	mm-modem-option-utils.c
-
-
