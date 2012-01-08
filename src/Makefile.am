@@ -188,3 +188,7 @@ modem_manager_SOURCES = \
 #	mm-modem-location.h
 #	mm-modem-firmware.c
 #	mm-modem-firmware.h
+
+CLEANFILES = \
+	mm-private-enums-types.h \
+	mm-private-enums-types.c
