@@ -57,6 +57,22 @@ mm_at_serial_port_set_response_parser (MMAtSerialPort *self,
     priv->response_parser_notify = notify;
 }
 
+static void
+remove_echo (GByteArray *response)
+{
+    guint i;
+
+    for (i = 0; i < (response->len - 1); i++) {
+        /* If there is any content before the first
+         * <CR><LF>, assume it's echo or garbage, and skip it */
+        if (response->data[i] == '\r' && response->data[i + 1] == '\n') {
+            if (i > 0)
+                g_byte_array_remove_range (response, 0, i);
+            break;
+        }
+    }
+}
+
 static gboolean
 parse_response (MMSerialPort *port, GByteArray *response, GError **error)
 {
@@ -66,6 +82,9 @@ parse_response (MMSerialPort *port, GByteArray *response, GError **error)
     GString *string;
 
     g_return_val_if_fail (priv->response_parser_fn != NULL, FALSE);
+
+    /* Remove echo */
+    remove_echo (response);
 
     /* Construct the string that AT-parsing functions expect */
     string = g_string_sized_new (response->len + 1);
@@ -177,6 +196,9 @@ parse_unsolicited (MMSerialPort *port, GByteArray *response)
     MMAtSerialPort *self = MM_AT_SERIAL_PORT (port);
     MMAtSerialPortPrivate *priv = MM_AT_SERIAL_PORT_GET_PRIVATE (self);
     GSList *iter;
+
+    /* Remove echo */
+    remove_echo (response);
 
     for (iter = priv->unsolicited_msg_handlers; iter; iter = iter->next) {
         MMAtUnsolicitedMsgHandler *handler = (MMAtUnsolicitedMsgHandler *) iter->data;
