@@ -6873,11 +6873,15 @@ disabling_step (DisablingContext *ctx)
         ctx->step++;
 
     case DISABLING_STEP_DISCONNECT_BEARERS:
-        mm_bearer_list_disconnect_all_bearers (
-            ctx->self->priv->modem_bearer_list,
-            (GAsyncReadyCallback)bearer_list_disconnect_all_bearers_ready,
-            ctx);
-        return;
+        if (ctx->self->priv->modem_bearer_list) {
+            mm_bearer_list_disconnect_all_bearers (
+                ctx->self->priv->modem_bearer_list,
+                (GAsyncReadyCallback)bearer_list_disconnect_all_bearers_ready,
+                ctx);
+            return;
+        }
+        /* Fall down to next step */
+        ctx->step++;
 
     case DISABLING_STEP_IFACE_SIMPLE:
         /* Fall down to next step */
