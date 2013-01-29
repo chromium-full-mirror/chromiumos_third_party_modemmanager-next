@@ -3151,12 +3151,12 @@ typedef enum {
     INITIALIZATION_STEP_REVISION,
     INITIALIZATION_STEP_EQUIPMENT_ID,
     INITIALIZATION_STEP_DEVICE_ID,
+    INITIALIZATION_STEP_SUPPORTED_MODES,
+    INITIALIZATION_STEP_SUPPORTED_BANDS,
     INITIALIZATION_STEP_UNLOCK_REQUIRED,
     INITIALIZATION_STEP_UNLOCK_RETRIES,
     INITIALIZATION_STEP_SIM,
     INITIALIZATION_STEP_OWN_NUMBERS,
-    INITIALIZATION_STEP_SUPPORTED_MODES,
-    INITIALIZATION_STEP_SUPPORTED_BANDS,
     INITIALIZATION_STEP_LAST
 } InitializationStep;
 
@@ -3672,6 +3672,54 @@ interface_initialization_step (InitializationContext *ctx)
         /* Fall down to next step */
         ctx->step++;
 
+    case INITIALIZATION_STEP_SUPPORTED_MODES:
+        g_assert (MM_IFACE_MODEM_GET_INTERFACE (ctx->self)->load_supported_modes != NULL);
+        g_assert (MM_IFACE_MODEM_GET_INTERFACE (ctx->self)->load_supported_modes_finish != NULL);
+
+        /* Supported modes are meant to be loaded only once during the whole
+         * lifetime of the modem. Therefore, if we already have them loaded,
+         * don't try to load them again. */
+        if (mm_gdbus_modem_get_supported_modes (ctx->skeleton) == MM_MODEM_MODE_NONE) {
+            MM_IFACE_MODEM_GET_INTERFACE (ctx->self)->load_supported_modes (
+                ctx->self,
+                (GAsyncReadyCallback)load_supported_modes_ready,
+                ctx);
+            return;
+        }
+        /* Fall down to next step */
+        ctx->step++;
+
+    case INITIALIZATION_STEP_SUPPORTED_BANDS: {
+        GArray *supported_bands;
+
+        supported_bands = (mm_common_bands_variant_to_garray (
+                               mm_gdbus_modem_get_supported_bands (ctx->skeleton)));
+
+        /* Supported bands are meant to be loaded only once during the whole
+         * lifetime of the modem. Therefore, if we already have them loaded,
+         * don't try to load them again. */
+        if (supported_bands->len == 0 ||
+            g_array_index (supported_bands, MMModemBand, 0)  == MM_MODEM_BAND_UNKNOWN) {
+            if (MM_IFACE_MODEM_GET_INTERFACE (ctx->self)->load_supported_bands &&
+                MM_IFACE_MODEM_GET_INTERFACE (ctx->self)->load_supported_bands_finish) {
+                MM_IFACE_MODEM_GET_INTERFACE (ctx->self)->load_supported_bands (
+                    ctx->self,
+                    (GAsyncReadyCallback)load_supported_bands_ready,
+                    ctx);
+                g_array_unref (supported_bands);
+                return;
+            }
+
+            /* Loading supported bands not implemented, default to UNKNOWN */
+            mm_gdbus_modem_set_supported_bands (ctx->skeleton, mm_common_build_bands_unknown ());
+            mm_gdbus_modem_set_bands (ctx->skeleton, mm_common_build_bands_unknown ());
+        }
+        g_array_unref (supported_bands);
+
+        /* Fall down to next step */
+        ctx->step++;
+    }
+
     case INITIALIZATION_STEP_UNLOCK_REQUIRED:
         /* Only check unlock required if we were previously not unlocked */
         if (mm_gdbus_modem_get_unlock_required (ctx->skeleton) != MM_MODEM_LOCK_NONE) {
@@ -3732,54 +3780,6 @@ interface_initialization_step (InitializationContext *ctx)
         }
         /* Fall down to next step */
         ctx->step++;
-
-    case INITIALIZATION_STEP_SUPPORTED_MODES:
-        g_assert (MM_IFACE_MODEM_GET_INTERFACE (ctx->self)->load_supported_modes != NULL);
-        g_assert (MM_IFACE_MODEM_GET_INTERFACE (ctx->self)->load_supported_modes_finish != NULL);
-
-        /* Supported modes are meant to be loaded only once during the whole
-         * lifetime of the modem. Therefore, if we already have them loaded,
-         * don't try to load them again. */
-        if (mm_gdbus_modem_get_supported_modes (ctx->skeleton) == MM_MODEM_MODE_NONE) {
-            MM_IFACE_MODEM_GET_INTERFACE (ctx->self)->load_supported_modes (
-                ctx->self,
-                (GAsyncReadyCallback)load_supported_modes_ready,
-                ctx);
-            return;
-        }
-        /* Fall down to next step */
-        ctx->step++;
-
-    case INITIALIZATION_STEP_SUPPORTED_BANDS: {
-        GArray *supported_bands;
-
-        supported_bands = (mm_common_bands_variant_to_garray (
-                               mm_gdbus_modem_get_supported_bands (ctx->skeleton)));
-
-        /* Supported bands are meant to be loaded only once during the whole
-         * lifetime of the modem. Therefore, if we already have them loaded,
-         * don't try to load them again. */
-        if (supported_bands->len == 0 ||
-            g_array_index (supported_bands, MMModemBand, 0)  == MM_MODEM_BAND_UNKNOWN) {
-            if (MM_IFACE_MODEM_GET_INTERFACE (ctx->self)->load_supported_bands &&
-                MM_IFACE_MODEM_GET_INTERFACE (ctx->self)->load_supported_bands_finish) {
-                MM_IFACE_MODEM_GET_INTERFACE (ctx->self)->load_supported_bands (
-                    ctx->self,
-                    (GAsyncReadyCallback)load_supported_bands_ready,
-                    ctx);
-                g_array_unref (supported_bands);
-                return;
-            }
-
-            /* Loading supported bands not implemented, default to UNKNOWN */
-            mm_gdbus_modem_set_supported_bands (ctx->skeleton, mm_common_build_bands_unknown ());
-            mm_gdbus_modem_set_bands (ctx->skeleton, mm_common_build_bands_unknown ());
-        }
-        g_array_unref (supported_bands);
-
-        /* Fall down to next step */
-        ctx->step++;
-    }
 
     case INITIALIZATION_STEP_LAST:
         if (ctx->fatal_error) {
