@@ -132,4 +132,8 @@ MMBaseModem *mm_plugin_create_modem (MMPlugin *plugin,
                                      MMDevice *device,
                                      GError **error);
 
+MMBaseModem *mm_plugin_create_test_modem (MMPlugin *plugin,
+                                          MMDevice *device,
+                                          GError **error);
+
 #endif /* MM_PLUGIN_H */

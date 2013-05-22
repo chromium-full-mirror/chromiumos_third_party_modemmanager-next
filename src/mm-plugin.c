@@ -29,6 +29,7 @@
 #include <mm-errors-types.h>
 
 #include "mm-plugin.h"
+#include "mm-context.h"
 #include "mm-device.h"
 #include "mm-at-serial-port.h"
 #include "mm-qcdm-serial-port.h"
@@ -893,6 +894,7 @@ mm_plugin_create_modem (MMPlugin  *self,
                                                    mm_port_probe_get_port_type (probe),
                                                    MM_AT_PORT_FLAG_NONE,
                                                    &inner_error);
+
             if (!grabbed) {
                 mm_warn ("Could not grab port (%s/%s): '%s'",
                          mm_port_probe_get_port_subsys (MM_PORT_PROBE (l->data)),
@@ -906,6 +908,133 @@ mm_plugin_create_modem (MMPlugin  *self,
         if (!mm_base_modem_organize_ports (modem, error))
             g_clear_object (&modem);
     }
+
+    return modem;
+}
+
+MMBaseModem *
+mm_plugin_create_test_modem (MMPlugin *self,
+                             MMDevice *device,
+                             GError   **error)
+{
+    MMBaseModem *modem = NULL;
+    const gchar **ports;
+    guint port_index, num_ports;
+    gboolean grabbed, some_port_grabbed;
+    GError *inner_error = NULL;
+
+    /* Let the plugin create the modem from the port probe results
+     * NOTE: The assumption here is that the plugin does not use the udev_device
+     * and the port_probes, because they are NULL in the test modem. */
+    modem = MM_PLUGIN_GET_CLASS (self)->create_modem (
+        MM_PLUGIN (self),
+        mm_device_get_path (device),
+        mm_device_get_drivers (device),
+        mm_device_get_vendor (device),
+        mm_device_get_product (device),
+        NULL,
+        error);
+
+    if (!modem)
+        return modem;
+
+    mm_base_modem_set_hotplugged (modem, mm_device_get_hotplugged (device));
+
+    /* Setup ports.
+     * NOTE: mm_plugin_create_modem calls the plugin's grab_port method to
+     * grab a port if it exists.
+     * This method typically only sets the port flags before calling
+     * mm_base_modem_grab_port method. We don't support calling the plugin's
+     * grab_port at all. This is OK since we will assume a strict order for
+     * specifying the ports for the test modem. */
+    ports = mm_context_get_test_at_ports ();
+    num_ports = g_strv_length((gchar **) ports);
+    port_index = 0;
+    /* First port is primary, and must exist. */
+    g_assert (ports && ports[port_index]);
+    grabbed = mm_base_modem_grab_port (modem,
+                                       "tty",
+                                       ports[port_index],
+                                       MM_PORT_TYPE_AT,
+                                       MM_AT_PORT_FLAG_PRIMARY,
+                                       &inner_error);
+    if (!grabbed) {
+        mm_err ("[FATAL] Could not grab primary port (%s): '%s'",
+                ports[port_index],
+                inner_error ? inner_error->message : "unknown error");
+        g_clear_error (&inner_error);
+        exit (1);
+    }
+    mm_dbg ("Created primary AT port at %s", ports[port_index]);
+    ++port_index;
+
+    /* Second port is secondary */
+    if (port_index < num_ports) {
+        grabbed = mm_base_modem_grab_port (modem,
+                                           "tty",
+                                           ports[port_index],
+                                           MM_PORT_TYPE_AT,
+                                           MM_AT_PORT_FLAG_SECONDARY,
+                                           &inner_error);
+        if (!grabbed) {
+            mm_err ("[FATAL] Could not grab secondary port (%s): '%s'",
+                    ports[port_index],
+                    inner_error ? inner_error->message : "unknown error");
+            g_clear_error (&inner_error);
+            exit (1);
+        }
+        mm_dbg ("Created secondary AT port at %s", ports[port_index]);
+        ++port_index;
+    }
+
+    /* Rest are none */
+    for (; port_index < num_ports; ++port_index) {
+        grabbed = mm_base_modem_grab_port (modem,
+                                           "tty",
+                                           ports[port_index],
+                                           MM_PORT_TYPE_AT,
+                                           MM_AT_PORT_FLAG_NONE,
+                                           &inner_error);
+        if (!grabbed) {
+            mm_err ("[FATAL] Could not grab tertiary port (%s): '%s'",
+                    ports[port_index],
+                    inner_error ? inner_error->message : "unknown error");
+            g_clear_error (&inner_error);
+            exit (1);
+        }
+        mm_dbg ("Created tertiary AT port at %s", ports[port_index]);
+    }
+
+    /* Create net ports */
+    ports = mm_context_get_test_net_ports ();
+    num_ports = g_strv_length ((gchar **) ports);
+    port_index = 0;
+    some_port_grabbed = FALSE;
+
+    for (; port_index < num_ports; ++port_index) {
+        grabbed = mm_base_modem_grab_port (modem,
+                                           "net",
+                                           ports[port_index],
+                                           MM_PORT_TYPE_NET,
+                                           MM_AT_PORT_FLAG_NONE,
+                                           &inner_error);
+        some_port_grabbed |= grabbed;
+        if (!grabbed) {
+            mm_warn ("Could not grab net port (%s): '%s'",
+                     ports[port_index],
+                     inner_error ? inner_error->message : "unknown error");
+            g_clear_error (&inner_error);
+        }
+    }
+
+    if (!some_port_grabbed) {
+        mm_err ("[FATAL] Could not grab any net port.");
+        exit (1);
+    }
+
+    /* Done with *all* ports */
+    if (!mm_base_modem_organize_ports (modem, error))
+        g_clear_object (&modem);
 
     return modem;
 }

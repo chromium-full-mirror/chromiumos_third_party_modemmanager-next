@@ -21,10 +21,20 @@
 void mm_context_init (gint argc,
                       gchar **argv);
 
-gboolean     mm_context_get_debug               (void);
-const gchar *mm_context_get_log_level           (void);
-const gchar *mm_context_get_log_file            (void);
-gboolean     mm_context_get_timestamps          (void);
-gboolean     mm_context_get_relative_timestamps (void);
+gboolean      mm_context_get_debug                 (void);
+const gchar  *mm_context_get_log_level             (void);
+const gchar  *mm_context_get_log_file              (void);
+gboolean      mm_context_get_timestamps            (void);
+gboolean      mm_context_get_relative_timestamps   (void);
+
+/* Test mode context */
+gboolean      mm_context_get_test_mode             (void);
+const gchar  *mm_context_get_test_plugin_name      (void);
+const gchar **mm_context_get_test_at_ports         (void);
+const gchar **mm_context_get_test_net_ports        (void);
+gboolean      mm_context_get_test_modem_hotplugged (void);
+guint16       mm_context_get_test_modem_vendor     (void);
+guint16       mm_context_get_test_modem_product    (void);
+const gchar **mm_context_get_test_modem_drivers    (void);
 
 #endif /* MM_CONTEXT_H */

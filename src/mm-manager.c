@@ -16,6 +16,7 @@
  * Copyright (C) 2011 - 2012 Google, Inc.
  */
 
+#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -27,6 +28,7 @@
 #include <mm-gdbus-manager.h>
 
 #include "mm-manager.h"
+#include "mm-context.h"
 #include "mm-device.h"
 #include "mm-plugin-manager.h"
 #include "mm-auth.h"
@@ -396,6 +398,11 @@ handle_uevent (GUdevClient *client,
     const gchar *subsys;
     const gchar *name;
 
+    if (mm_context_get_test_mode()) {
+        /* In test mode, ignore all device update events to reduce noise */
+        return;
+    }
+
     g_return_if_fail (action != NULL);
 
     /* A bit paranoid */
@@ -412,6 +419,49 @@ handle_uevent (GUdevClient *client,
         device_added (self, device, TRUE, FALSE);
     else if (g_str_equal (action, "remove"))
         device_removed (self, device);
+}
+
+static void
+add_test_modem (MMManager *manager)
+{
+    MMDevice *device = NULL;
+    MMPlugin *plugin = NULL;
+    GError *error = NULL;
+
+    /* Create MMDevice with a NULL GUdevDevice! */
+    /* We'll ensure that the GUdevDevice is never needed. */
+    device = mm_device_new(NULL, mm_context_get_test_modem_hotplugged ());
+    if (!device) {
+        mm_err ("FATAL: Failed to create test device");
+        exit (1);
+    }
+    /* We assume that the first port in test_at_ports corresponds to the device */
+    g_hash_table_insert (manager->priv->devices,
+                         g_strdup (*mm_context_get_test_at_ports ()),
+                         device);
+
+    /* Set the specified plugin as the preferred plugin for device */
+    plugin = mm_plugin_manager_get_plugin_by_name (
+                 manager->priv->plugin_manager,
+                 mm_context_get_test_plugin_name());
+    if (!plugin) {
+        mm_err ("FATAL: Failed to find a plugin named %s",
+                mm_context_get_test_plugin_name());
+        exit (1);
+    }
+    mm_device_set_plugin (device, G_OBJECT (plugin));
+
+    /* Create the test modem object */
+    if (!mm_device_create_test_modem (device,
+                                      manager->priv->object_manager,
+                                      &error)) {
+        mm_err ("FATAL: Couldn't create test modem for device: %s",
+                error->message);
+        g_error_free (error);
+        exit (1);
+    }
+
+    mm_info("Test modem successfully created. Hurrah!");
 }
 
 typedef struct {
@@ -449,6 +499,13 @@ mm_manager_start (MMManager *manager,
                   gboolean manual_scan)
 {
     GList *devices, *iter;
+
+    if (mm_context_get_test_mode()) {
+        /* In test mode, ignore physical devices. */
+        /* Create modem for the given plugin and ports instead. */
+        add_test_modem(manager);
+        return;
+    }
 
     g_return_if_fail (manager != NULL);
     g_return_if_fail (MM_IS_MANAGER (manager));

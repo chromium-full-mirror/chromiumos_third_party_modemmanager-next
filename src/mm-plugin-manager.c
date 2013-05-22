@@ -705,6 +705,23 @@ mm_plugin_manager_find_device_support (MMPluginManager *self,
 
 /*****************************************************************************/
 
+MMPlugin *mm_plugin_manager_get_plugin_by_name (MMPluginManager *self,
+                                                const gchar *name)
+{
+  MMPlugin *plugin;
+  GList *iter;
+
+  for (iter = self->priv->plugins; iter; iter = g_list_next (iter)) {
+      plugin = MM_PLUGIN (iter->data);
+      if (strcmp (name, mm_plugin_get_name (plugin)) == 0) {
+          return plugin;
+      }
+  }
+  return NULL;
+}
+
+/*****************************************************************************/
+
 static MMPlugin *
 load_plugin (const gchar *path)
 {

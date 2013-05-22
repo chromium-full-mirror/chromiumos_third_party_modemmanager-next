@@ -58,4 +58,7 @@ gboolean mm_plugin_manager_find_device_support_finish (MMPluginManager *self,
                                                        GAsyncResult *result,
                                                        GError **error);
 
+MMPlugin *mm_plugin_manager_get_plugin_by_name (MMPluginManager *self,
+                                                const gchar *name);
+
 #endif /* MM_PLUGIN_MANAGER_H */

@@ -24,6 +24,7 @@
 #include <libmm-glib.h>
 
 #include "mm-device.h"
+#include "mm-context.h"
 #include "mm-plugin.h"
 #include "mm-log.h"
 
@@ -486,6 +487,48 @@ mm_device_create_modem (MMDevice                  *self,
              g_list_length (self->priv->port_probes));
 
     self->priv->modem = mm_plugin_create_modem (self->priv->plugin, self, error);
+    if (self->priv->modem) {
+        /* Keep the object manager */
+        self->priv->object_manager = g_object_ref (object_manager);
+
+        /* We want to get notified when the modem becomes valid/invalid */
+        g_signal_connect (self->priv->modem,
+                          "notify::" MM_BASE_MODEM_VALID,
+                          G_CALLBACK (modem_valid),
+                          self);
+    }
+
+    return !!self->priv->modem;
+}
+
+gboolean
+mm_device_create_test_modem (MMDevice                 *self,
+                             GDBusObjectManagerServer *object_manager,
+                             GError                   **error)
+{
+    g_assert (!self->priv->udev_device);
+    g_assert (!self->priv->port_probes);
+
+    g_assert (self->priv->modem == NULL);
+    g_assert (self->priv->object_manager == NULL);
+
+    /* First populate some essential MMDevice fields that need to be faked
+     * because we don't really have a GUdevDevice sitting around */
+    /* Assume that the first port given is also the device */
+    self->priv->udev_device_path = strdup (*mm_context_get_test_at_ports ());
+    self->priv->vendor = mm_context_get_test_modem_vendor ();
+    self->priv->product = mm_context_get_test_modem_product ();
+    self->priv->drivers =
+        g_strdupv ((gchar **) mm_context_get_test_modem_drivers ());
+
+    mm_info ("Creating test modem with plugin '%s' and %u ports",
+             mm_plugin_get_name (self->priv->plugin),
+             g_strv_length ((gchar **) mm_context_get_test_at_ports ()));
+
+    self->priv->modem = mm_plugin_create_test_modem (self->priv->plugin,
+                                                     self,
+                                                     error);
+
     if (self->priv->modem) {
         /* Keep the object manager */
         self->priv->object_manager = g_object_ref (object_manager);

@@ -74,6 +74,10 @@ gboolean mm_device_create_modem (MMDevice                  *self,
                                  GError                   **error);
 void     mm_device_remove_modem (MMDevice  *self);
 
+gboolean mm_device_create_test_modem (MMDevice                  *self,
+                                      GDBusObjectManagerServer  *object_manager,
+                                      GError                   **error);
+
 const gchar  *mm_device_get_path         (MMDevice *self);
 const gchar **mm_device_get_drivers      (MMDevice *self);
 guint16       mm_device_get_vendor       (MMDevice *self);
