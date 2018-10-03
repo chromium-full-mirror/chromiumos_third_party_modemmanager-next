@@ -554,7 +554,7 @@ mm_port_qmi_open (MMPortQmi *self,
 
     ctx = g_slice_new0 (PortOpenContext);
     ctx->step = PORT_OPEN_STEP_FIRST;
-    ctx->set_data_format = set_data_format;
+    ctx->set_data_format = FALSE /*set_data_format*/;
     ctx->kernel_data_format = QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN;
     ctx->llp = QMI_WDA_LINK_LAYER_PROTOCOL_UNKNOWN;
 
