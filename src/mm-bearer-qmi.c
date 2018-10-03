@@ -398,12 +398,14 @@ typedef enum {
     CONNECT_STEP_WDS_CLIENT_IPV4,
     CONNECT_STEP_IP_FAMILY_IPV4,
     CONNECT_STEP_ENABLE_INDICATIONS_IPV4,
+    CONNECT_STEP_BIND_MUX_DATA_PORT_IPV4,
     CONNECT_STEP_START_NETWORK_IPV4,
     CONNECT_STEP_GET_CURRENT_SETTINGS_IPV4,
     CONNECT_STEP_IPV6,
     CONNECT_STEP_WDS_CLIENT_IPV6,
     CONNECT_STEP_IP_FAMILY_IPV6,
     CONNECT_STEP_ENABLE_INDICATIONS_IPV6,
+    CONNECT_STEP_BIND_MUX_DATA_PORT_IPV6,
     CONNECT_STEP_START_NETWORK_IPV6,
     CONNECT_STEP_GET_CURRENT_SETTINGS_IPV6,
     CONNECT_STEP_LAST
@@ -493,6 +495,49 @@ connect_finish (MMBaseBearer *self,
 }
 
 static void connect_context_step (GTask *task);
+
+static void bind_mux_data_port_ready (QmiClientWds *client,
+                                      GAsyncResult *res,
+                                      GTask *task)
+{
+    ConnectContext *ctx;
+    GError *error = NULL;
+    QmiMessageWdsBindMuxDataPortOutput *output;
+
+    ctx = g_task_get_task_data (task);
+    g_assert (ctx->running_ipv4 || ctx->running_ipv6);
+    g_assert (!(ctx->running_ipv4 && ctx->running_ipv6));
+
+    output = qmi_client_wds_bind_mux_data_port_finish (client, res, &error);
+    if (!output ||
+        !qmi_message_wds_bind_mux_data_port_output_get_result (output, &error)) {
+        mm_info ("error: couldn't bind mux data port: %s\n", error->message);
+
+        if (ctx->running_ipv4)
+            ctx->error_ipv4 = error;
+        else
+            ctx->error_ipv6 = error;
+
+        ctx->step = CONNECT_STEP_LAST;
+    } else
+        ctx->step++;
+
+    if (output)
+       qmi_message_wds_bind_mux_data_port_output_unref (output);
+
+    connect_context_step (task);
+}
+
+static QmiMessageWdsBindMuxDataPortInput *
+build_bind_mux_data_port_input (void)
+{
+    QmiMessageWdsBindMuxDataPortInput *input;
+
+    input = qmi_message_wds_bind_mux_data_port_input_new ();
+    qmi_message_wds_bind_mux_data_port_input_set_endpoint_info (input, 0x4, 0x1, NULL);
+    qmi_message_wds_bind_mux_data_port_input_set_mux_id (input, 0x1, NULL);
+    return input;
+}
 
 static void
 start_network_ready (QmiClientWds *client,
@@ -1325,6 +1370,22 @@ connect_context_step (GTask *task)
                                                task);
         return;
 
+    case CONNECT_STEP_BIND_MUX_DATA_PORT_IPV4: {
+        QmiMessageWdsBindMuxDataPortInput *input;
+
+        mm_dbg ("Binding mux data port for IPv4...");
+
+        input = build_bind_mux_data_port_input ();
+        qmi_client_wds_bind_mux_data_port (ctx->client_ipv4,
+                                           input,
+                                           10,
+                                           cancellable,
+                                           (GAsyncReadyCallback) bind_mux_data_port_ready,
+                                           task);
+        qmi_message_wds_bind_mux_data_port_input_unref (input);
+        return;
+    }
+
     case CONNECT_STEP_START_NETWORK_IPV4: {
         QmiMessageWdsStartNetworkInput *input;
 
@@ -1425,6 +1486,22 @@ connect_context_step (GTask *task)
                                                (GAsyncReadyCallback) connect_enable_indications_ipv6_ready,
                                                task);
         return;
+
+    case CONNECT_STEP_BIND_MUX_DATA_PORT_IPV6: {
+        QmiMessageWdsBindMuxDataPortInput *input;
+
+        mm_dbg ("Binding mux data port for IPv6...");
+
+        input = build_bind_mux_data_port_input ();
+        qmi_client_wds_bind_mux_data_port (ctx->client_ipv6,
+                                           input,
+                                           10,
+                                           cancellable,
+                                           (GAsyncReadyCallback) bind_mux_data_port_ready,
+                                           task);
+        qmi_message_wds_bind_mux_data_port_input_unref (input);
+        return;
+    }
 
     case CONNECT_STEP_START_NETWORK_IPV6: {
         QmiMessageWdsStartNetworkInput *input;
