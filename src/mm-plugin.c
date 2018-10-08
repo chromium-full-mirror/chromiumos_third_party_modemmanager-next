@@ -47,7 +47,7 @@
 G_DEFINE_TYPE (MMPlugin, mm_plugin, G_TYPE_OBJECT)
 
 /* Virtual port corresponding to the embedded modem */
-static gchar *virtual_port[] = {"smd0", NULL};
+static gchar *virtual_port[] = {"smd0", "rmnet_data0", "qmi0", NULL};
 
 #define HAS_POST_PROBING_FILTERS(self)          \
     (self->priv->vendor_strings ||              \
@@ -1083,7 +1083,7 @@ mm_plugin_create_modem (MMPlugin  *self,
                 g_clear_error (&inner_error);
             } else if (!mm_base_modem_grab_port (modem,
                                                  kernel_device,
-                                                 MM_PORT_TYPE_AT,
+                                                 MM_PORT_TYPE_QMI,
                                                  MM_PORT_SERIAL_AT_FLAG_NONE,
                                                  &inner_error)) {
                 mm_warn ("Could not grab port (virtual/%s): '%s'",
