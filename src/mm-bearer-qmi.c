@@ -1287,10 +1287,7 @@ connect_context_step (GTask *task)
          * to request. If the LLP is raw-ip, we force Static IP, because not
          * all DHCP clients support the raw-ip interfaces; otherwise default
          * to DHCP as always. */
-        if (mm_port_qmi_llp_is_raw_ip (ctx->qmi))
-            ctx->ip_method = MM_BEARER_IP_METHOD_STATIC;
-        else
-            ctx->ip_method = MM_BEARER_IP_METHOD_DHCP;
+        ctx->ip_method = MM_BEARER_IP_METHOD_STATIC;
 
         mm_dbg ("Defaulting to use %s IP method", mm_bearer_ip_method_get_string (ctx->ip_method));
 
@@ -1622,7 +1619,8 @@ _connect (MMBaseBearer *self,
     }
 
     /* Each data port has a single QMI port associated */
-    qmi = mm_base_modem_get_port_qmi_for_data (modem, data, &error);
+    //qmi = mm_base_modem_get_port_qmi_for_data (modem, data, &error);
+    qmi = mm_base_modem_get_port_qmi (modem);
     if (!qmi) {
         g_task_report_error (
             self,
