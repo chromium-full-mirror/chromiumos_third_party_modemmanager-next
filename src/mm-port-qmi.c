@@ -188,6 +188,7 @@ typedef enum {
     PORT_OPEN_STEP_FIRST,
     PORT_OPEN_STEP_CHECK_OPENING,
     PORT_OPEN_STEP_CHECK_ALREADY_OPEN,
+    PORT_OPEN_STEP_OPEN_QRTR_NODE,
     PORT_OPEN_STEP_DEVICE_NEW,
     PORT_OPEN_STEP_OPEN_WITHOUT_DATA_FORMAT,
     PORT_OPEN_STEP_GET_KERNEL_DATA_FORMAT,
@@ -200,6 +201,7 @@ typedef enum {
 } PortOpenStep;
 
 typedef struct {
+    QrtrNode *node;
     QmiDevice *device;
     QmiClient *wda;
     GError *error;
@@ -222,6 +224,8 @@ port_open_context_free (PortOpenContext *ctx)
     }
     if (ctx->device)
         g_object_unref (ctx->device);
+    if (ctx->node)
+        g_object_unref (ctx->node);
     g_slice_free (PortOpenContext, ctx);
 }
 
@@ -340,6 +344,25 @@ qmi_device_new_ready (GObject *unused,
 }
 
 static void
+qrtr_node_ready (GObject *unused,
+                 GAsyncResult *res,
+                 GTask *task)
+{
+    PortOpenContext *ctx;
+
+    ctx = g_task_get_task_data (task);
+
+    ctx->node = qrtr_node_for_id_finish (res, &ctx->error);
+    if (!ctx->node)
+        /* Error creating the node */
+        ctx->step = PORT_OPEN_STEP_LAST;
+    else
+        /* Go on to next step */
+        ctx->step++;
+    port_open_step (task);
+}
+
+static void
 port_open_step (GTask *task)
 {
     MMPortQmi *self;
@@ -376,28 +399,28 @@ port_open_step (GTask *task)
         ctx->step++;
         /* Fall down to next step */
 
-    case PORT_OPEN_STEP_DEVICE_NEW: {
-        GFile *file;
-        gchar *fullpath;
 
-        fullpath = g_strdup_printf ("/dev/%s", mm_port_get_device (MM_PORT (self)));
-        file = g_file_new_for_path (fullpath);
-
+    case PORT_OPEN_STEP_OPEN_QRTR_NODE:
         /* We flag in this point that we're opening. From now on, if we stop
          * for whatever reason, we should clear this flag. We do this by ensuring
          * that all callbacks go through the LAST step for completing. */
         self->priv->opening = TRUE;
 
-        mm_dbg ("Creating QMI device...");
-        qmi_device_new (file,
-                        g_task_get_cancellable (task),
-                        (GAsyncReadyCallback) qmi_device_new_ready,
-                        task);
-
-        g_free (fullpath);
-        g_object_unref (file);
+        mm_info ("@@ Fetching QRTR node 0...");
+        qrtr_node_for_id (0,
+                          20,
+                          g_task_get_cancellable (task),
+                          (GAsyncReadyCallback) qrtr_node_ready,
+                          task);
         return;
-    }
+
+    case PORT_OPEN_STEP_DEVICE_NEW:
+        mm_info ("@@ Creating QMI device from QRTR node...");
+        qmi_device_new_from_node (ctx->node,
+                                  g_task_get_cancellable (task),
+                                  (GAsyncReadyCallback) qmi_device_new_ready,
+                                  task);
+        return;
 
     case PORT_OPEN_STEP_OPEN_WITHOUT_DATA_FORMAT:
         /* Now open the QMI device without any data format CTL flag */
