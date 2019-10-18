@@ -310,15 +310,19 @@ qmi_device_open_first_ready (QmiDevice *qmi_device,
     PortOpenContext *ctx;
 
     ctx = g_task_get_task_data (task);
-    if (!qmi_device_open_finish (qmi_device, res, &ctx->error))
+    if (!qmi_device_open_finish (qmi_device, res, &ctx->error)) {
+        mm_info ("@@ Could not open QRTR device at %s", qmi_device_get_path_display (qmi_device));
         /* Error opening the device */
         ctx->step = PORT_OPEN_STEP_LAST;
-    else if (!ctx->set_data_format)
+    } else if (!ctx->set_data_format) {
+        mm_info ("@@ Opened QRTR device at %s, completing", qmi_device_get_path_display (qmi_device));
         /* If not setting data format, we're done */
         ctx->step = PORT_OPEN_STEP_LAST;
-    else
+    } else {
+        mm_info ("@@ Opened QRTR device at %s", qmi_device_get_path_display (qmi_device));
         /* Go on to next step */
         ctx->step++;
+    }
     port_open_step (task);
 }
 
@@ -334,12 +338,15 @@ qmi_device_new_ready (GObject *unused,
      * so that we return IN_PROGRESS errors until we finish this async
      * operation. */
     ctx->device = qmi_device_new_finish (res, &ctx->error);
-    if (!ctx->device)
+    if (!ctx->device) {
+        mm_info ("@@ Could not create QRTR device");
         /* Error creating the device */
         ctx->step = PORT_OPEN_STEP_LAST;
-    else
+    } else {
+        mm_info ("@@ Created QRTR device: %s", qmi_device_get_path_display (ctx->device));
         /* Go on to next step */
         ctx->step++;
+    }
     port_open_step (task);
 }
 
