@@ -189,6 +189,7 @@ typedef enum {
     PORT_OPEN_STEP_CHECK_OPENING,
     PORT_OPEN_STEP_CHECK_ALREADY_OPEN,
     PORT_OPEN_STEP_OPEN_QRTR_NODE,
+    PORT_OPEN_STEP_WAIT_FOR_SERVICES,
     PORT_OPEN_STEP_DEVICE_NEW,
     PORT_OPEN_STEP_OPEN_WITHOUT_DATA_FORMAT,
     PORT_OPEN_STEP_GET_KERNEL_DATA_FORMAT,
@@ -351,6 +352,26 @@ qmi_device_new_ready (GObject *unused,
 }
 
 static void
+qrtr_node_services_ready (QrtrNode *node,
+                          GAsyncResult *res,
+                          GTask *task)
+{
+    PortOpenContext *ctx;
+
+    ctx = g_task_get_task_data (task);
+    if (!qrtr_node_wait_for_services_finish (node, res, &ctx->error)) {
+        mm_info ("@@ Failed to wait for QMI services");
+        /* Error creating the device */
+        ctx->step = PORT_OPEN_STEP_LAST;
+    } else {
+        mm_info ("@@ Required services appeared");
+        /* Go on to next step */
+        ctx->step++;
+    }
+    port_open_step (task);
+}
+
+static void
 qrtr_node_ready (GObject *unused,
                  GAsyncResult *res,
                  GTask *task)
@@ -420,6 +441,28 @@ port_open_step (GTask *task)
                           (GAsyncReadyCallback) qrtr_node_ready,
                           task);
         return;
+
+    case PORT_OPEN_STEP_WAIT_FOR_SERVICES: {
+        GArray *services;
+        QmiService required_services[] = {
+            QMI_SERVICE_DMS,
+            QMI_SERVICE_WDA,
+            QMI_SERVICE_WDS,
+        };
+
+	services = g_array_sized_new (FALSE, FALSE, sizeof (QmiService),
+			              G_N_ELEMENTS (required_services));
+	g_array_append_vals (services, required_services, G_N_ELEMENTS (required_services));
+
+        mm_info ("@@ Waiting for services...");
+        qrtr_node_wait_for_services (ctx->node,
+                                     services,
+                                     0,
+                                     NULL,
+                                     (GAsyncReadyCallback) qrtr_node_services_ready,
+                                     task);
+        return;
+    }
 
     case PORT_OPEN_STEP_DEVICE_NEW:
         mm_info ("@@ Creating QMI device from QRTR node...");
