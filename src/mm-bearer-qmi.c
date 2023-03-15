@@ -42,9 +42,6 @@ G_DEFINE_TYPE (MMBearerQmi, mm_bearer_qmi, MM_TYPE_BASE_BEARER)
 
 #define GLOBAL_PACKET_DATA_HANDLE 0xFFFFFFFF
 
-/* TODO(b/175305412): Use rmnet_data0 as the only link. */
-#define CHROMEOS_USE_RMNET_DATA0_HACK 1
-
 struct _MMBearerQmiPrivate {
     /* Cancellables available during a connection attempt */
     GCancellable *ongoing_connect_user_cancellable;
@@ -769,9 +766,7 @@ connect_context_free (ConnectContext *ctx)
     }
 
     if (ctx->link_name) {
-#ifndef CHROMEOS_USE_RMNET_DATA0_HACK
         mm_port_qmi_cleanup_link (ctx->qmi, ctx->link_name, ctx->mux_id, NULL, NULL);
-#endif
         g_free (ctx->link_name);
     }
     g_clear_object (&ctx->link);
@@ -2016,26 +2011,12 @@ connect_context_step (GTask *task)
         /* if muxing has been enabled in the port, we need to create a new link
          * interface. */
         if (MM_PORT_QMI_DAP_IS_SUPPORTED_QMAP (ctx->dap)) {
-#ifdef CHROMEOS_USE_RMNET_DATA0_HACK
-            g_autoptr (MMBaseModem) modem = NULL;
-
-            g_object_get (ctx->self,
-                          MM_BASE_BEARER_MODEM, &modem,
-                          NULL);
-            g_assert (modem);
-
-            mm_obj_dbg (self, "Forcing rmnet_data0 link");
-            ctx->link_name = g_strdup ("rmnet_data0");
-            ctx->mux_id = 1;
-            ctx->link = mm_base_modem_peek_port (modem, ctx->link_name);
-#else
             mm_port_qmi_setup_link (ctx->qmi,
                                     ctx->data,
                                     ctx->link_prefix_hint,
                                     (GAsyncReadyCallback) setup_link_ready,
                                     task);
             return;
-#endif
         }
         ctx->step++;
         /* fall through */
@@ -2748,13 +2729,11 @@ reset_bearer_connection (MMBearerQmi *self,
             g_assert (self->priv->qmi);
             /* Link is disconnected; update the state */
             mm_port_set_connected (self->priv->link, FALSE);
-#ifndef CHROMEOS_USE_RMNET_DATA0_HACK
             mm_port_qmi_cleanup_link (self->priv->qmi,
                                       mm_port_get_device (self->priv->link),
                                       self->priv->mux_id,
                                       NULL,
                                       NULL);
-#endif
             g_clear_object (&self->priv->link);
         }
         self->priv->mux_id = QMI_DEVICE_MUX_ID_UNBOUND;

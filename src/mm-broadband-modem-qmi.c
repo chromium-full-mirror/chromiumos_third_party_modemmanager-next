@@ -86,8 +86,6 @@ G_DEFINE_TYPE_EXTENDED (MMBroadbandModemQmi, mm_broadband_modem_qmi, MM_TYPE_BRO
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM_FIRMWARE, iface_modem_firmware_init)
                         G_IMPLEMENT_INTERFACE (MM_TYPE_SHARED_QMI, shared_qmi_init))
 
-/* TODO(b/175305412): Use rmnet_data0 as the only link. */
-#define CHROMEOS_USE_RMNET_DATA0_HACK 1
 struct _MMBroadbandModemQmiPrivate {
     /* Cached device IDs, retrieved by the modem interface when loading device
      * IDs, and used afterwards in the 3GPP and CDMA interfaces. */
@@ -13762,16 +13760,7 @@ initialization_started (MMBroadbandModem *self,
         return;
     }
 
-#ifndef CHROMEOS_USE_RMNET_DATA0_HACK
     initialization_reset_ports (task);
-#else
-    mm_port_qmi_open (ctx->qmi,
-                      TRUE,
-                      NULL,
-                      (GAsyncReadyCallback)qmi_port_open_ready,
-                      task);
-#endif
-
 }
 
 /*****************************************************************************/
