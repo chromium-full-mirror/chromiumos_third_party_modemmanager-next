@@ -41,6 +41,7 @@ struct _MMBearerMbimPrivate {
     MMPort     *data;
     MMPort     *link;
     guint32     session_id;
+    gboolean    remove_filters;
 };
 
 /*****************************************************************************/
@@ -170,25 +171,74 @@ packet_statistics_query_ready (MbimDevice   *device,
 }
 
 static void
-reload_stats (MMBaseBearer        *self,
-              GAsyncReadyCallback  callback,
-              gpointer             user_data)
+packet_statistics_query (GTask      *task,
+                         MbimDevice *device)
 {
-    MMPortMbim             *mbim;
-    GTask                  *task;
-    g_autoptr(MbimMessage)  message = NULL;
+    g_autoptr(MbimMessage) message = NULL;
 
-    if (!peek_ports (self, &mbim, NULL, callback, user_data))
-        return;
-
-    task = g_task_new (self, NULL, callback, user_data);
     message = (mbim_message_packet_statistics_query_new (NULL));
-    mbim_device_command (mm_port_mbim_peek_device (mbim),
+    mbim_device_command (device,
                          message,
                          5,
                          NULL,
                          (GAsyncReadyCallback)packet_statistics_query_ready,
                          task);
+}
+
+static void
+packet_filters_set_ready (MbimDevice   *device,
+                          GAsyncResult *res,
+                          GTask        *task)
+{
+    MMBearerMbim           *self;
+    g_autoptr(GError)       error = NULL;
+    g_autoptr(MbimMessage)  response = NULL;
+
+    self = g_task_get_source_object (task);
+
+    response = mbim_device_command_finish (device, res, &error);
+    if (!response || !mbim_message_response_get_result (response, MBIM_MESSAGE_TYPE_COMMAND_DONE, &error))
+        mm_obj_dbg (self, "Couldn't reset packet filters: %s", error->message);
+
+    packet_statistics_query (task, device);
+}
+
+static void
+ensure_removed_filters (GTask      *task,
+                        MbimDevice *device)
+{
+    MMBearerMbim           *self;
+    g_autoptr(MbimMessage)  message = NULL;
+
+    self = g_task_get_source_object (task);
+
+    message = mbim_message_ip_packet_filters_set_new (self->priv->session_id, 0, NULL, NULL);
+    mbim_device_command (device,
+                         message,
+                         5,
+                         NULL,
+                         (GAsyncReadyCallback)packet_filters_set_ready,
+                         task);
+}
+
+static void
+reload_stats (MMBaseBearer        *_self,
+              GAsyncReadyCallback  callback,
+              gpointer             user_data)
+{
+    MMBearerMbim *self = MM_BEARER_MBIM (_self);
+    MMPortMbim   *mbim;
+    GTask        *task;
+
+    if (!peek_ports (self, &mbim, NULL, callback, user_data))
+        return;
+
+    task = g_task_new (self, NULL, callback, user_data);
+
+    if (self->priv->remove_filters)
+        ensure_removed_filters (task, mm_port_mbim_peek_device (mbim));
+    else
+        packet_statistics_query (task, mm_port_mbim_peek_device (mbim));
 }
 
 /*****************************************************************************/
@@ -1743,6 +1793,21 @@ reload_connection_status (MMBaseBearer        *self,
 
 /*****************************************************************************/
 
+static gboolean
+check_need_removed_filters (MMBroadbandModemMbim *modem)
+{
+    const gchar **drivers;
+    guint         i;
+
+    drivers = mm_base_modem_get_drivers (MM_BASE_MODEM (modem));
+    for (i = 0; drivers[i]; i++) {
+        /* Applicable only to the FM350 */
+        if (g_str_equal (drivers[i], "mtk_t7xx"))
+            return TRUE;
+    }
+    return FALSE;
+}
+
 MMBaseBearer *
 mm_bearer_mbim_new (MMBroadbandModemMbim *modem,
                     MMBearerProperties   *config)
@@ -1756,6 +1821,8 @@ mm_bearer_mbim_new (MMBroadbandModemMbim *modem,
                            MM_BASE_BEARER_MODEM,  modem,
                            MM_BASE_BEARER_CONFIG, config,
                            NULL);
+
+    MM_BEARER_MBIM (bearer)->priv->remove_filters = check_need_removed_filters (modem);
 
     /* Only export valid bearers */
     mm_base_bearer_export (bearer);
