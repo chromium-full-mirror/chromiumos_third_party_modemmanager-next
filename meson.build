@@ -3,7 +3,7 @@
 
 project(
   'ModemManager', 'c',
-  version: '1.21.5',
+  version: '1.21.6',
   license: 'GPL2',
   default_options: [
     'buildtype=debugoptimized',
@@ -50,14 +50,18 @@ mm_gir_version = '1.0'
 gnome = import('gnome')
 i18n = import('i18n')
 pkg = import('pkgconfig')
+python = import('python').find_installation('python3')
 
 source_root = meson.current_source_dir()
 build_root = meson.current_build_dir()
 
 build_aux_dir = source_root / 'build-aux'
+templates_dir = source_root / 'build-aux/templates'
 po_dir = source_root / 'po'
 src_dir = source_root / 'src'
 plugins_dir = source_root / 'src/plugins'
+
+mm_mkenums = find_program(source_root / 'build-aux/mm-mkenums')
 
 top_inc = include_directories('.')
 
@@ -147,9 +151,7 @@ deps = [
 ]
 
 c_args = [
-  # In 2.46, g_simple_async_* calls. Disable deprecations from then on
-  # until everything is ported to GTask.
-  '-DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_44',
+  '-DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_' + glib_version.underscorify(),
   '-DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_' + glib_version.underscorify(),
 ]
 
@@ -250,14 +252,14 @@ config_h.set('WITH_BUILTIN_PLUGINS', enable_builtin_plugins)
 # MBIM support (enabled by default)
 enable_mbim = get_option('mbim')
 if enable_mbim
-  mbim_glib_dep = dependency('mbim-glib', version: '>= 1.29.2')
+  mbim_glib_dep = dependency('mbim-glib', version: '>= 1.29.5')
 endif
 config_h.set('WITH_MBIM', enable_mbim)
 
 # QMI support (enabled by default)
 enable_qmi = get_option('qmi')
 if enable_qmi
-  qmi_glib_dep = dependency('qmi-glib', version: '>= 1.33.4')
+  qmi_glib_dep = dependency('qmi-glib', version: '>= 1.33.6')
 endif
 config_h.set('WITH_QMI', enable_qmi)
 
@@ -423,6 +425,8 @@ if enable_gtk_doc
   subdir('docs/reference/libmm-glib')
 endif
 
+enable_fuzzer = get_option('fuzzer')
+
 configure_file(
   output: 'config.h',
   configuration: config_h,
@@ -465,4 +469,5 @@ summary({
   'bash completion': enable_bash_completion,
   'vala bindings': enable_vapi,
   'code coverage': get_option('b_coverage'),
+  'fuzzer': enable_fuzzer,
 }, section: 'Miscellaneous')

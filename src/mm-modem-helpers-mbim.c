@@ -16,6 +16,7 @@
 #include "mm-modem-helpers-mbim.h"
 #include "mm-modem-helpers.h"
 #include "mm-enums-types.h"
+#include "mm-flags-types.h"
 #include "mm-errors-types.h"
 #include "mm-error-helpers.h"
 #include "mm-log-object.h"
@@ -129,6 +130,24 @@ mm_modem_3gpp_registration_state_from_mbim_register_state (MbimRegisterState sta
     case MBIM_REGISTER_STATE_UNKNOWN:
     default:
         return MM_MODEM_3GPP_REGISTRATION_STATE_UNKNOWN;
+    }
+}
+
+/*****************************************************************************/
+
+MMModem3gppPacketServiceState
+mm_modem_3gpp_packet_service_state_from_mbim_packet_service_state (MbimPacketServiceState state)
+{
+    switch (state) {
+    case MBIM_PACKET_SERVICE_STATE_ATTACHED:
+        return MM_MODEM_3GPP_PACKET_SERVICE_STATE_ATTACHED;
+    case MBIM_PACKET_SERVICE_STATE_ATTACHING:
+    case MBIM_PACKET_SERVICE_STATE_DETACHING:
+    case MBIM_PACKET_SERVICE_STATE_DETACHED:
+        return MM_MODEM_3GPP_PACKET_SERVICE_STATE_DETACHED;
+    case MBIM_PACKET_SERVICE_STATE_UNKNOWN:
+    default:
+        return MM_MODEM_3GPP_PACKET_SERVICE_STATE_UNKNOWN;
     }
 }
 
@@ -1119,32 +1138,27 @@ select_mbim_signal_with_data_class (MbimDataClass   data_class,
                                     MMSignal      **lte,
                                     MMSignal      **nr5g)
 {
-    switch (data_class) {
-    case MBIM_DATA_CLASS_5G_NSA:
-    case MBIM_DATA_CLASS_5G_SA:
+    if (data_class & (MBIM_DATA_CLASS_5G_NSA |
+                      MBIM_DATA_CLASS_5G_SA))
         return nr5g;
-    case MBIM_DATA_CLASS_LTE:
+    if (data_class & (MBIM_DATA_CLASS_LTE))
         return lte;
-    case MBIM_DATA_CLASS_UMTS:
-    case MBIM_DATA_CLASS_HSDPA:
-    case MBIM_DATA_CLASS_HSUPA:
+    if (data_class & (MBIM_DATA_CLASS_UMTS |
+                      MBIM_DATA_CLASS_HSDPA |
+                      MBIM_DATA_CLASS_HSUPA))
         return umts;
-    case MBIM_DATA_CLASS_GPRS:
-    case MBIM_DATA_CLASS_EDGE:
+    if (data_class & (MBIM_DATA_CLASS_GPRS |
+                      MBIM_DATA_CLASS_EDGE))
         return gsm;
-    case MBIM_DATA_CLASS_1XEVDO:
-    case MBIM_DATA_CLASS_1XEVDO_REVA:
-    case MBIM_DATA_CLASS_1XEVDV:
-    case MBIM_DATA_CLASS_3XRTT:
-    case MBIM_DATA_CLASS_1XEVDO_REVB:
+    if (data_class & (MBIM_DATA_CLASS_1XEVDO |
+                      MBIM_DATA_CLASS_1XEVDO_REVA |
+                      MBIM_DATA_CLASS_1XEVDV |
+                      MBIM_DATA_CLASS_3XRTT |
+                      MBIM_DATA_CLASS_1XEVDO_REVB))
         return evdo;
-    case MBIM_DATA_CLASS_1XRTT:
+    if (data_class & MBIM_DATA_CLASS_1XRTT)
         return cdma;
-    case MBIM_DATA_CLASS_UMB:
-    case MBIM_DATA_CLASS_CUSTOM:
-    default:
-        return NULL;
-    }
+    return NULL;
 }
 
 gboolean
