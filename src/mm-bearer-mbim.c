@@ -512,9 +512,6 @@ ip_configuration_query_ready (MbimDevice   *device,
 
         /* Build IPv4 config */
         if (ctx->requested_ip_type == MBIM_CONTEXT_IP_TYPE_IPV4 ||
-#if defined SUPPORT_MBIM_IPV6_WITH_IPV4_ROAMING //TODO(b/183029202): Remove hacks before merging to upstream
-            ctx->requested_ip_type == MBIM_CONTEXT_IP_TYPE_IPV6 ||
-#endif
             ctx->requested_ip_type == MBIM_CONTEXT_IP_TYPE_IPV4V6 ||
             ctx->requested_ip_type == MBIM_CONTEXT_IP_TYPE_IPV4_AND_IPV6) {
             gboolean address_set = FALSE;
@@ -654,9 +651,6 @@ ip_configuration_query_ready (MbimDevice   *device,
             if (ipv6configurationavailable & MBIM_IP_CONFIGURATION_AVAILABLE_FLAG_MTU)
                 mm_bearer_ip_config_set_mtu (ipv6_config, ipv6mtu);
 
-#if defined SUPPORT_MBIM_IPV6_WITH_IPV4_ROAMING //TODO(b/183029202): Remove hacks before merging to upstream
-            mm_bearer_ip_config_set_method (ipv6_config, MM_BEARER_IP_METHOD_STATIC);
-#endif
             /* We requested IPv6, but it wasn't reported as activated. If there is no IPv6 address
              * provided by the modem, we assume the IPv6 bearer wasn't truly activated */
             if (!address_set &&
