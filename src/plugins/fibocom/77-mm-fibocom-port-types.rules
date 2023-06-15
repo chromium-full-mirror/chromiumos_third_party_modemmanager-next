@@ -56,6 +56,9 @@ ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{.MM_USBIFNUM}=="04", ENV{
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{.MM_USBIFNUM}=="00", ENV{ID_MM_REQUIRED}="1"
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{.MM_USBIFNUM}=="02", SUBSYSTEM=="tty", ENV{ID_MM_PORT_IGNORE}="1"
 
+# Fibocom NL668 only supports one single multiplexed PDN connection
+ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{ID_MM_MAX_MULTIPLEXED_LINKS}="1"
+
 # Fibocom FM150
 #  ttyUSB0 (if #0): QCDM port
 #  ttyUSB1 (if #1): AT port
