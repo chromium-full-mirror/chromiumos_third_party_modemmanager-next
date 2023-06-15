@@ -24,6 +24,5 @@ KERNEL=="cdc-wdm*", SUBSYSTEM=="usbmisc", ENV{ID_MM_CANDIDATE}="1"
 SUBSYSTEMS=="usb", GOTO="mm_candidate_end"
 SUBSYSTEM=="wwan", ENV{DEVTYPE}=="wwan_dev", GOTO="mm_candidate_end"
 SUBSYSTEM=="wwan", ENV{ID_MM_CANDIDATE}="1"
-SUBSYSTEM=="wwan", ENV{ID_MM_FIBOCOM_INITIAL_EPS_OFF_ON}="1"
 
 LABEL="mm_candidate_end"
