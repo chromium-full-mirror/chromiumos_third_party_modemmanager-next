@@ -81,6 +81,8 @@ struct _MMPortQmiPrivate {
     MMPort   *preallocated_links_main;
     GArray   *preallocated_links;
     GList    *preallocated_links_setup_pending;
+    /* first multiplex setup */
+    gboolean first_multiplex_setup;
 };
 
 /*****************************************************************************/
@@ -712,6 +714,18 @@ get_rmnet_device_add_link_flags (MMPortQmi *self)
         }
     }
 
+    if (g_strcmp0 (self->priv->net_driver, "qmi_wwan") == 0) {
+        QmiWdaDataAggregationProtocol dap;
+
+        dap = mm_port_qmi_get_data_aggregation_protocol (self);
+        if (dap == QMI_WDA_DATA_AGGREGATION_PROTOCOL_QMAPV5)
+            flags |= (QMI_DEVICE_ADD_LINK_FLAGS_INGRESS_MAP_CKSUMV5 |
+                      QMI_DEVICE_ADD_LINK_FLAGS_EGRESS_MAP_CKSUMV5);
+        else if (dap == QMI_WDA_DATA_AGGREGATION_PROTOCOL_QMAPV4)
+            flags |= (QMI_DEVICE_ADD_LINK_FLAGS_INGRESS_MAP_CKSUMV4 |
+                      QMI_DEVICE_ADD_LINK_FLAGS_EGRESS_MAP_CKSUMV4);
+    }
+
     flags_str = qmi_device_add_link_flags_build_string_from_mask (flags);
     mm_obj_dbg (self, "Creating RMNET link with flags: %s", flags_str);
     return flags;
@@ -1180,8 +1194,9 @@ load_supported_kernel_data_modes (MMPortQmi *self,
 
 /*****************************************************************************/
 
-#define DEFAULT_DOWNLINK_DATA_AGGREGATION_MAX_SIZE      32768
-#define DEFAULT_DOWNLINK_DATA_AGGREGATION_MAX_DATAGRAMS 32
+#define DEFAULT_DOWNLINK_DATA_AGGREGATION_MAX_SIZE                32768
+#define DEFAULT_DOWNLINK_DATA_AGGREGATION_MAX_SIZE_QMI_WWAN_RMNET 16384
+#define DEFAULT_DOWNLINK_DATA_AGGREGATION_MAX_DATAGRAMS           32
 
 typedef struct {
     MMPortQmiKernelDataMode       kernel_data_mode;
@@ -1496,7 +1511,11 @@ sync_wda_data_format (GTask *task)
     qmi_message_wda_set_data_format_input_set_uplink_data_aggregation_protocol (input, ctx->wda_ul_dap_requested, NULL);
     qmi_message_wda_set_data_format_input_set_downlink_data_aggregation_protocol (input, ctx->wda_dl_dap_requested, NULL);
     if (ctx->wda_dl_dap_requested != QMI_WDA_DATA_AGGREGATION_PROTOCOL_DISABLED) {
-        qmi_message_wda_set_data_format_input_set_downlink_data_aggregation_max_size (input, DEFAULT_DOWNLINK_DATA_AGGREGATION_MAX_SIZE, NULL);
+        if ((g_strcmp0 (self->priv->net_driver, "qmi_wwan") == 0) &&
+            (ctx->kernel_data_modes_supported & MM_PORT_QMI_KERNEL_DATA_MODE_MUX_RMNET))
+            qmi_message_wda_set_data_format_input_set_downlink_data_aggregation_max_size (input, DEFAULT_DOWNLINK_DATA_AGGREGATION_MAX_SIZE_QMI_WWAN_RMNET, NULL);
+        else
+            qmi_message_wda_set_data_format_input_set_downlink_data_aggregation_max_size (input, DEFAULT_DOWNLINK_DATA_AGGREGATION_MAX_SIZE, NULL);
         qmi_message_wda_set_data_format_input_set_downlink_data_aggregation_max_datagrams (input, DEFAULT_DOWNLINK_DATA_AGGREGATION_MAX_DATAGRAMS, NULL);
     }
     if (ctx->use_endpoint)
@@ -2040,8 +2059,10 @@ internal_setup_data_format_ready (MMPortQmi    *self,
                                             NULL, /* not expected to update */
                                             &error))
         g_task_return_error (task, error);
-    else
+    else {
+        self->priv->first_multiplex_setup = FALSE;
         g_task_return_boolean (task, TRUE);
+    }
     g_object_unref (task);
 }
 
@@ -2089,7 +2110,11 @@ count_links_setup (MMPortQmi *self,
             return 0;
         }
 
-        return links->len;
+        if (links)
+            return links->len;
+
+        /* No list of links returned, so there are none */
+        return 0;
     }
 
     if (self->priv->kernel_data_modes & MM_PORT_QMI_KERNEL_DATA_MODE_MUX_QMIWWAN)
@@ -2130,9 +2155,12 @@ mm_port_qmi_setup_data_format (MMPortQmi                      *self,
         (self->priv->kernel_data_modes & (MM_PORT_QMI_KERNEL_DATA_MODE_MUX_RMNET | MM_PORT_QMI_KERNEL_DATA_MODE_MUX_QMIWWAN)) &&
         MM_PORT_QMI_DAP_IS_SUPPORTED_QMAP (self->priv->dap)) {
         mm_obj_dbg (self, "multiplex support already available when setting up data format");
-        g_task_return_boolean (task, TRUE);
-        g_object_unref (task);
-        return;
+        /* If this is the first time that multiplex is used, perform anyway the internal reset operation, so that the links are properly managed */
+        if (!self->priv->first_multiplex_setup) {
+            g_task_return_boolean (task, TRUE);
+            g_object_unref (task);
+            return;
+        }
     }
 
     if ((action == MM_PORT_QMI_SETUP_DATA_FORMAT_ACTION_SET_DEFAULT) &&
@@ -2393,6 +2421,7 @@ port_open_step (GTask *task)
     switch (ctx->step) {
     case PORT_OPEN_STEP_FIRST:
         mm_obj_dbg (self, "Opening QMI device...");
+        self->priv->first_multiplex_setup = TRUE;
         ctx->step++;
         /* Fall through */
 
