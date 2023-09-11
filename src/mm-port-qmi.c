@@ -29,6 +29,9 @@
 #include "mm-modem-helpers-qmi.h"
 #include "mm-log-object.h"
 
+/* TODO(b/175305412): Use rmnet_data0 as the only link. */
+#define CHROMEOS_USE_RMNET_DATA0_HACK 1
+
 #define DEFAULT_LINK_PREALLOCATED_AMOUNT 4
 
 /* as internally defined in the kernel */
@@ -2421,7 +2424,10 @@ port_open_step (GTask *task)
     switch (ctx->step) {
     case PORT_OPEN_STEP_FIRST:
         mm_obj_dbg (self, "Opening QMI device...");
+#ifndef CHROMEOS_USE_RMNET_DATA0_HACK
+        /* Disable the internal reset on first setup, as otherwise we lose rmnet_data0 */
         self->priv->first_multiplex_setup = TRUE;
+#endif
         ctx->step++;
         /* Fall through */
 
