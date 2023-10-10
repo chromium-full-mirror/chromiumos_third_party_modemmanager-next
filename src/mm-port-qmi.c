@@ -33,6 +33,7 @@
 
 /* as internally defined in the kernel */
 #define RMNET_MAX_PACKET_SIZE 16384
+#define MHI_NET_MTU_DEFAULT   16384
 
 G_DEFINE_TYPE (MMPortQmi, mm_port_qmi, MM_TYPE_PORT)
 
@@ -152,6 +153,9 @@ initialize_endpoint_info (MMPortQmi *self)
             self->priv->endpoint_interface_number = 1;
             break;
         case QMI_DATA_ENDPOINT_TYPE_PCIE:
+            /* Qualcomm magic number */
+            self->priv->endpoint_interface_number = 4;
+            break;
         case QMI_DATA_ENDPOINT_TYPE_UNDEFINED:
         case QMI_DATA_ENDPOINT_TYPE_HSIC:
         case QMI_DATA_ENDPOINT_TYPE_BAM_DMUX:
@@ -714,7 +718,8 @@ get_rmnet_device_add_link_flags (MMPortQmi *self)
         }
     }
 
-    if (g_strcmp0 (self->priv->net_driver, "qmi_wwan") == 0) {
+    if (g_strcmp0 (self->priv->net_driver, "qmi_wwan") == 0 ||
+        g_strcmp0 (self->priv->net_driver, "mhi_net") == 0) {
         QmiWdaDataAggregationProtocol dap;
 
         dap = mm_port_qmi_get_data_aggregation_protocol (self);
@@ -977,6 +982,7 @@ internal_reset (MMPortQmi           *self,
 {
     GTask                *task;
     InternalResetContext *ctx;
+    guint                 mtu;
 
     task = g_task_new (self, NULL, callback, user_data);
 
@@ -985,12 +991,18 @@ internal_reset (MMPortQmi           *self,
     ctx->device = g_object_ref (device);
     g_task_set_task_data (task, ctx, (GDestroyNotify) internal_reset_context_free);
 
+    /* mhi_net has a custom default MTU set by the kernel driver */
+    if (g_strcmp0 (self->priv->net_driver, "mhi_net") == 0)
+        mtu = MHI_NET_MTU_DEFAULT;
+    else
+        mtu = MM_PORT_NET_MTU_DEFAULT;
+
     /* first, bring down main interface */
     mm_obj_dbg (self, "bringing down data interface '%s'",
                 mm_port_get_device (ctx->data));
     mm_port_net_link_setup (MM_PORT_NET (ctx->data),
                             FALSE,
-                            MM_PORT_NET_MTU_DEFAULT,
+                            mtu,
                             NULL,
                             (GAsyncReadyCallback) net_link_down_ready,
                             task);
@@ -1150,6 +1162,9 @@ load_current_kernel_data_modes (MMPortQmi *self,
         }
     }
 
+    if (g_strcmp0 (self->priv->net_driver, "mhi_net") == 0)
+        return (MM_PORT_QMI_KERNEL_DATA_MODE_RAW_IP | MM_PORT_QMI_KERNEL_DATA_MODE_MUX_RMNET);
+
     /* For any driver, assume raw-ip only */
     return MM_PORT_QMI_KERNEL_DATA_MODE_RAW_IP;
 }
@@ -1187,6 +1202,10 @@ load_supported_kernel_data_modes (MMPortQmi *self,
 
         return supported;
     }
+
+    /* PCIe based setups support both raw ip and QMAP through rmnet */
+    if (g_strcmp0 (self->priv->net_driver, "mhi_net") == 0)
+        return (MM_PORT_QMI_KERNEL_DATA_MODE_RAW_IP | MM_PORT_QMI_KERNEL_DATA_MODE_MUX_RMNET);
 
     /* For any driver, assume raw-ip only */
     return MM_PORT_QMI_KERNEL_DATA_MODE_RAW_IP;

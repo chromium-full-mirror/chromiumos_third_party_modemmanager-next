@@ -377,6 +377,9 @@ mm_iface_modem_wait_for_final_state_finish (MMIfaceModem *self,
         g_propagate_error (error, inner_error);
         return MM_MODEM_STATE_UNKNOWN;
     }
+    if (value == MM_MODEM_STATE_UNKNOWN)
+        g_set_error (error, MM_CORE_ERROR, MM_CORE_ERROR_FAILED,
+                     "Unknown modem state");
     return (MMModemState)value;
 }
 
@@ -404,6 +407,10 @@ state_changed (MMIfaceModem *self,
                   MM_IFACE_MODEM_STATE, &state,
                   NULL);
 
+    /* Ignore unknown state explicitly during a wait operation */
+    if (state == MM_MODEM_STATE_UNKNOWN)
+        return;
+
     /* Are we in a final state already? */
     if (MODEM_STATE_IS_INTERMEDIATE (state))
         return;
@@ -413,7 +420,6 @@ state_changed (MMIfaceModem *self,
     /* If we want a specific final state and this is not the one we were
      * looking for, then skip */
     if (ctx->final_state != MM_MODEM_STATE_UNKNOWN &&
-        state != MM_MODEM_STATE_UNKNOWN &&
         state != ctx->final_state)
         return;
 
@@ -5326,6 +5332,16 @@ interface_initialization_step (GTask *task)
             mm_gdbus_modem_set_device (ctx->skeleton, device);
             g_free (device);
         }
+        /* Load physdev path if not done before */
+        if (!mm_gdbus_modem_get_physdev (ctx->skeleton)) {
+            gchar *physdev;
+
+            g_object_get (self,
+                          MM_BASE_MODEM_PHYSDEV, &physdev,
+                          NULL);
+            mm_gdbus_modem_set_physdev (ctx->skeleton, physdev);
+            g_free (physdev);
+        }
         /* Load driver if not done before */
         if (!mm_gdbus_modem_get_drivers (ctx->skeleton)) {
             gchar **drivers;
@@ -6029,6 +6045,7 @@ mm_iface_modem_initialize (MMIfaceModem *self,
         mm_gdbus_modem_set_own_numbers (skeleton, NULL);
         mm_gdbus_modem_set_device_identifier (skeleton, NULL);
         mm_gdbus_modem_set_device (skeleton, NULL);
+        mm_gdbus_modem_set_physdev (skeleton, NULL);
         mm_gdbus_modem_set_drivers (skeleton, NULL);
         mm_gdbus_modem_set_plugin (skeleton, NULL);
         mm_gdbus_modem_set_equipment_identifier (skeleton, NULL);

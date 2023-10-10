@@ -7412,6 +7412,15 @@ modem_messaging_enable_unsolicited_events (MMIfaceModemMessaging *self,
     task = g_task_new (self, NULL, callback, user_data);
     primary = mm_base_modem_peek_port_primary (MM_BASE_MODEM (self));
 
+    /* Do nothing if the modem doesn't have any AT port (e.g. it could be
+     * a QMI modem trying to enable the parent unsolicited messages) */
+    if (!primary) {
+        g_task_return_new_error (task, MM_CORE_ERROR, MM_CORE_ERROR_FAILED,
+                                 "No AT port to enable messaging unsolicited events");
+        g_object_unref (task);
+        return;
+    }
+
     /* Enable unsolicited events for primary port */
     mm_obj_dbg (self, "enabling messaging unsolicited events on primary port %s",
                 mm_port_get_device (MM_PORT (primary)));
@@ -12949,6 +12958,7 @@ mm_broadband_modem_create_device_identifier (MMBroadbandModem  *self,
 
 MMBroadbandModem *
 mm_broadband_modem_new (const gchar *device,
+                        const gchar *physdev,
                         const gchar **drivers,
                         const gchar *plugin,
                         guint16 vendor_id,
@@ -12956,6 +12966,7 @@ mm_broadband_modem_new (const gchar *device,
 {
     return g_object_new (MM_TYPE_BROADBAND_MODEM,
                          MM_BASE_MODEM_DEVICE, device,
+                         MM_BASE_MODEM_PHYSDEV, physdev,
                          MM_BASE_MODEM_DRIVERS, drivers,
                          MM_BASE_MODEM_PLUGIN, plugin,
                          MM_BASE_MODEM_VENDOR_ID, vendor_id,
