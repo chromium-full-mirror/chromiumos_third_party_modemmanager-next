@@ -56,11 +56,6 @@ GList *mm_3gpp_network_info_list_from_mbim_providers (const MbimProvider *const 
 MbimPinType mbim_pin_type_from_mm_modem_3gpp_facility (MMModem3gppFacility facility);
 MMModem3gppFacility mm_modem_3gpp_facility_from_mbim_pin_type (MbimPinType pin_type);
 
-void mm_store_vid_pid(guint vid,guint pid);
-
-GError *mm_mobile_equipment_error_from_mbim_nw_error (MbimNwError nw_error,
-                                                      gpointer    log_object);
-
 MMBearerAllowedAuth mm_bearer_allowed_auth_from_mbim_auth_protocol (MbimAuthProtocol      auth_protocol);
 MbimAuthProtocol    mm_bearer_allowed_auth_to_mbim_auth_protocol   (MMBearerAllowedAuth   bearer_auth,
                                                                     gpointer              log_object,
@@ -183,5 +178,15 @@ gdouble mm_earfcn_to_frequency (guint32  earfcn,
                                 gpointer log_object);
 gdouble mm_nrarfcn_to_frequency (guint32  nrarfcn,
                                  gpointer log_object);
+
+/*****************************************************************************/
+/* MM error translations */
+
+/* Hack for FM350 error translations */
+void mm_store_vid_pid (guint vid, guint pid);
+
+void    mm_register_mbim_errors     (void);
+GError *mm_error_from_mbim_nw_error (MbimNwError nw_error,
+                                     gpointer    log_object);
 
 #endif  /* MM_MODEM_HELPERS_MBIM_H */
