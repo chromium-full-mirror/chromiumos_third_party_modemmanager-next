@@ -5090,7 +5090,7 @@ basic_connect_notification_connect (MMBroadbandModemMbim *self,
         ReportDisconnectedStatusContext ctx;
         g_autoptr(GError)               connection_error = NULL;
 
-        connection_error = mm_mobile_equipment_error_from_mbim_nw_error (nw_error, self);
+        connection_error = mm_error_from_mbim_nw_error (nw_error, self);
 
         mm_obj_dbg (self, "session ID '%u' was deactivated: %s", session_id, connection_error->message);
 
@@ -6795,7 +6795,7 @@ register_state_set_ready (MbimDevice   *device,
              * a big issue. */
             if (nw_error) {
                 g_clear_error (&error);
-                error = mm_mobile_equipment_error_from_mbim_nw_error (nw_error, self);
+                error = mm_error_from_mbim_nw_error (nw_error, self);
             }
         }
     }
@@ -9760,7 +9760,7 @@ packet_service_set_ready (MbimDevice   *device,
             /* Prefer the NW error if available */
             if (nw_error) {
                 g_clear_error (&error);
-                error = mm_mobile_equipment_error_from_mbim_nw_error (nw_error, self);
+                error = mm_error_from_mbim_nw_error (nw_error, self);
             }
         }
     }
