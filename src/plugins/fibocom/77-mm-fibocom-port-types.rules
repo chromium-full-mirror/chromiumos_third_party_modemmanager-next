@@ -2,21 +2,6 @@
 ACTION!="add|change|move|bind", GOTO="mm_fibocom_port_types_end"
 SUBSYSTEMS=="usb", ATTRS{idVendor}=="2cb7", GOTO="mm_fibocom_port_types"
 SUBSYSTEMS=="usb", ATTRS{idVendor}=="1782", GOTO="mm_fibocom_port_types"
-SUBSYSTEMS=="pci", SUBSYSTEM=="wwan", ATTRS{vendor}=="0x14c3", GOTO="mm_fibocom_pci_port_types"
-GOTO="mm_fibocom_port_types_end"
-
-LABEL="mm_fibocom_pci_port_types"
-
-# Fibocom FM350: ChromeOS specific configuration
-#  mbim0at0: AT port, ignored.
-ATTRS{vendor}=="0x14c3", ATTRS{device}=="0x4d75", ATTR{type}=="AT", ENV{ID_MM_PORT_IGNORE}="1"
-
-# Fibocom FM350 attach APN with toggle modem power
-ATTRS{vendor}=="0x14c3", ATTRS{device}=="0x4d75", ENV{ID_MM_FIBOCOM_INITIAL_EPS_OFF_ON}="1"
-
-# Fibocom FM350 doesn't correctly support multiplexing yet
-ATTRS{vendor}=="0x14c3", ATTRS{device}=="0x4d75", ENV{ID_MM_MAX_MULTIPLEXED_LINKS}="0"
-
 GOTO="mm_fibocom_port_types_end"
 
 LABEL="mm_fibocom_port_types"
