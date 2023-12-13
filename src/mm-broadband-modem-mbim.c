@@ -149,7 +149,7 @@ struct _MMBroadbandModemMbimPrivate {
     gboolean is_google_carrier_lock_supported;
 
     /* Process unsolicited notifications */
-    guint notification_id;
+    gulong                  notification_id;
     ProcessNotificationFlag setup_flags;
     ProcessNotificationFlag enable_flags;
 
@@ -1529,12 +1529,12 @@ load_unlock_required_context_free (LoadUnlockRequiredContext *ctx)
 }
 
 static MMModemLock
-modem_load_unlock_required_finish (MMIfaceModem *self,
-                                   GAsyncResult *res,
-                                   GError **error)
+modem_load_unlock_required_finish (MMIfaceModem  *self,
+                                   GAsyncResult  *res,
+                                   GError       **error)
 {
     GError *inner_error = NULL;
-    gssize value;
+    gssize  value;
 
     value = g_task_propagate_int (G_TASK (res), &inner_error);
     if (inner_error) {
@@ -1545,9 +1545,9 @@ modem_load_unlock_required_finish (MMIfaceModem *self,
 }
 
 static void
-pin_query_ready (MbimDevice *device,
+pin_query_ready (MbimDevice   *device,
                  GAsyncResult *res,
-                 GTask *task)
+                 GTask        *task)
 {
     MbimMessage *response;
     GError *error = NULL;
@@ -1585,8 +1585,6 @@ pin_query_ready (MbimDevice *device,
     if (response)
         mbim_message_unref (response);
 }
-
-static gboolean wait_for_sim_ready (GTask *task);
 
 static void
 unlock_required_subscriber_ready_state_ready (MbimDevice   *device,
@@ -1726,7 +1724,7 @@ unlock_required_subscriber_ready_state_ready (MbimDevice   *device,
         mbim_device_command (device,
                              message,
                              10,
-                             NULL,
+                             g_task_get_cancellable (task),
                              (GAsyncReadyCallback)pin_query_ready,
                              task);
         mbim_message_unref (message);
@@ -1752,7 +1750,7 @@ wait_for_sim_ready (GTask *task)
     mbim_device_command (ctx->device,
                          message,
                          10,
-                         NULL,
+                         g_task_get_cancellable (task),
                          (GAsyncReadyCallback)unlock_required_subscriber_ready_state_ready,
                          task);
     mbim_message_unref (message);
@@ -1760,14 +1758,15 @@ wait_for_sim_ready (GTask *task)
 }
 
 static void
-modem_load_unlock_required (MMIfaceModem *self,
-                            gboolean last_attempt,
-                            GAsyncReadyCallback callback,
-                            gpointer user_data)
+modem_load_unlock_required (MMIfaceModem        *self,
+                            gboolean             last_attempt,
+                            GCancellable        *cancellable,
+                            GAsyncReadyCallback  callback,
+                            gpointer             user_data)
 {
     LoadUnlockRequiredContext *ctx;
-    MbimDevice *device;
-    GTask *task;
+    MbimDevice                *device;
+    GTask                     *task;
 
     if (!peek_device (self, &device, callback, user_data))
         return;
@@ -1776,7 +1775,7 @@ modem_load_unlock_required (MMIfaceModem *self,
     ctx->device = g_object_ref (device);
     ctx->last_attempt = last_attempt;
 
-    task = g_task_new (self, NULL, callback, user_data);
+    task = g_task_new (self, cancellable, callback, user_data);
     g_task_set_task_data (task, ctx, (GDestroyNotify)load_unlock_required_context_free);
 
     wait_for_sim_ready (task);
@@ -3733,12 +3732,11 @@ load_enabled_facility_pin_query_ready (MbimDevice *device,
     LoadEnabledFacilityLocksContext *ctx;
     MbimMessage *response;
     MbimMessage *message;
-    GError *error = NULL;
     MbimPinType pin_type;
     MbimPinState pin_state;
 
     ctx = g_task_get_task_data (task);
-    response = mbim_device_command_finish (device, res, &error);
+    response = mbim_device_command_finish (device, res, NULL);
     if (response) {
         if (mbim_message_response_get_result (response, MBIM_MESSAGE_TYPE_COMMAND_DONE, NULL) &&
             mbim_message_pin_response_parse (response, &pin_type, &pin_state, NULL, NULL) &&
@@ -5851,7 +5849,7 @@ port_notification_cb (MMPortMbim           *port,
     MbimService  service;
     MbimDevice  *device;
 
-    /* Onlyu process notifications if the device still exists */
+    /* Only process notifications if the device still exists */
     device = mm_port_mbim_peek_device (port);
     if (!device)
         return;

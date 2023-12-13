@@ -184,7 +184,6 @@ struct _MMBroadbandModemQmiPrivate {
 
     /* WDS Profile changed notification ID (3gpp Profile Manager) */
     guint profile_changed_indication_id;
-    gint  profile_changed_indication_ignored;
 
     /* Packet service state helpers when using NAS System Info and DSD
      * (not applicable when using NAS Serving System) */
@@ -870,9 +869,9 @@ typedef struct {
 } LoadUnlockRequiredContext;
 
 static MMModemLock
-modem_load_unlock_required_finish (MMIfaceModem *self,
-                                   GAsyncResult *res,
-                                   GError **error)
+modem_load_unlock_required_finish (MMIfaceModem  *self,
+                                   GAsyncResult  *res,
+                                   GError       **error)
 {
     GError *inner_error = NULL;
     gssize value;
@@ -890,7 +889,7 @@ static void load_unlock_required_context_step (GTask *task);
 static void
 unlock_required_uim_get_card_status_ready (QmiClientUim *client,
                                            GAsyncResult *res,
-                                           GTask *task)
+                                           GTask        *task)
 {
     MMBroadbandModemQmi *self;
     LoadUnlockRequiredContext *ctx;
@@ -935,7 +934,7 @@ unlock_required_uim_get_card_status_ready (QmiClientUim *client,
 static void
 dms_uim_get_pin_status_ready (QmiClientDms *client,
                               GAsyncResult *res,
-                              GTask *task)
+                              GTask        *task)
 {
     MMBroadbandModemQmi *self;
     LoadUnlockRequiredContext *ctx;
@@ -1032,13 +1031,18 @@ dms_uim_get_pin_status_ready (QmiClientDms *client,
 static void
 load_unlock_required_context_step (GTask *task)
 {
-    MMBroadbandModemQmi *self;
+    MMBroadbandModemQmi       *self;
     LoadUnlockRequiredContext *ctx;
-    GError *error = NULL;
-    QmiClient *client;
+    GError                    *error = NULL;
+    QmiClient                 *client;
 
     self = g_task_get_source_object (task);
     ctx = g_task_get_task_data (task);
+
+    if (g_task_return_error_if_cancelled (task)) {
+        g_object_unref (task);
+        return;
+    }
 
     switch (ctx->step) {
     case LOAD_UNLOCK_REQUIRED_STEP_FIRST:
@@ -1073,7 +1077,7 @@ load_unlock_required_context_step (GTask *task)
             qmi_client_dms_uim_get_pin_status (QMI_CLIENT_DMS (client),
                                                NULL,
                                                5,
-                                               NULL,
+                                               g_task_get_cancellable (task),
                                                (GAsyncReadyCallback) dms_uim_get_pin_status_ready,
                                                task);
             return;
@@ -1097,7 +1101,7 @@ load_unlock_required_context_step (GTask *task)
         qmi_client_uim_get_card_status (QMI_CLIENT_UIM (client),
                                         NULL,
                                         5,
-                                        NULL,
+                                        g_task_get_cancellable (task),
                                         (GAsyncReadyCallback) unlock_required_uim_get_card_status_ready,
                                         task);
         return;
@@ -1108,19 +1112,20 @@ load_unlock_required_context_step (GTask *task)
 }
 
 static void
-modem_load_unlock_required (MMIfaceModem *self,
-                            gboolean last_attempt,
-                            GAsyncReadyCallback callback,
-                            gpointer user_data)
+modem_load_unlock_required (MMIfaceModem        *self,
+                            gboolean             last_attempt,
+                            GCancellable        *cancellable,
+                            GAsyncReadyCallback  callback,
+                            gpointer             user_data)
 {
     LoadUnlockRequiredContext *ctx;
-    GTask *task;
+    GTask                     *task;
 
     ctx = g_new0 (LoadUnlockRequiredContext, 1);
     ctx->step = LOAD_UNLOCK_REQUIRED_STEP_FIRST;
     ctx->last_attempt = last_attempt;
 
-    task = g_task_new (self, NULL, callback, user_data);
+    task = g_task_new (self, cancellable, callback, user_data);
     g_task_set_task_data (task, ctx, g_free);
 
     load_unlock_required_context_step (task);
@@ -6534,11 +6539,6 @@ modem_3gpp_profile_manager_list_profiles (MMIfaceModem3gppProfileManager  *self,
 /*****************************************************************************/
 /* Store profile (3GPP profile management interface) */
 
-#define IGNORED_PROFILE_CHANGED_INDICATION_TIMEOUT_MS 100
-
-static void profile_changed_indication_ignore (MMBroadbandModemQmi *self,
-                                               gboolean             ignore);
-
 typedef struct {
     QmiClientWds         *client;
     gint                  profile_id;
@@ -6582,44 +6582,6 @@ modem_3gpp_profile_manager_store_profile_finish (MMIfaceModem3gppProfileManager 
     return TRUE;
 }
 
-static gboolean
-store_profile_complete_wait (GTask *task)
-{
-    MMBroadbandModemQmi *self;
-
-    self = g_task_get_source_object (task);
-
-    /* On a successful operation, we were still ignoring the indications */
-    profile_changed_indication_ignore (self, FALSE);
-    g_task_return_boolean (task, TRUE);
-    g_object_unref (task);
-
-    return G_SOURCE_REMOVE;
-}
-
-static void
-store_profile_complete (GTask  *task,
-                        GError *error)
-{
-    MMBroadbandModemQmi *self;
-
-    self = g_task_get_source_object (task);
-
-    if (error) {
-        /* On operation failure, we don't expect further profile update
-         * indications, so we can safely stop ignoring them and return
-         * the error without delay. */
-        profile_changed_indication_ignore (self, FALSE);
-        g_task_return_error (task, error);
-        g_object_unref (task);
-        return;
-    }
-
-    g_timeout_add (IGNORED_PROFILE_CHANGED_INDICATION_TIMEOUT_MS,
-                   (GSourceFunc) store_profile_complete_wait,
-                   task);
-}
-
 static void store_profile_run (GTask *task);
 
 static void
@@ -6635,11 +6597,8 @@ modify_profile_ready (QmiClientWds *client,
 
     output = qmi_client_wds_modify_profile_finish (client, res, &error);
     if (!output) {
-        store_profile_complete (task, error);
-        return;
-    }
-
-    if (!qmi_message_wds_modify_profile_output_get_result (output, &error)) {
+        g_task_return_error (task, error);
+    } else if (!qmi_message_wds_modify_profile_output_get_result (output, &error)) {
         QmiWdsDsProfileError ds_profile_error;
 
         if (g_error_matches (error, QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_INVALID_PROFILE_TYPE) &&
@@ -6652,18 +6611,16 @@ modify_profile_ready (QmiClientWds *client,
             store_profile_run (task);
             return;
         }
-
         if (g_error_matches (error, QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_EXTENDED_INTERNAL) &&
             qmi_message_wds_modify_profile_output_get_extended_error_code (output, &ds_profile_error, NULL)) {
             g_prefix_error (&error, "DS profile error: %s: ", qmi_wds_ds_profile_error_get_string (ds_profile_error));
         }
         g_prefix_error (&error, "Couldn't modify profile: ");
-        store_profile_complete (task, error);
-        return;
+        g_task_return_error (task, error);
+    } else {
+        g_task_return_boolean (task, TRUE);
     }
-
-    /* success */
-    store_profile_complete (task, NULL);
+    g_object_unref (task);
 }
 
 static void
@@ -6677,16 +6634,13 @@ create_profile_ready (QmiClientWds *client,
     guint8               profile_index;
     g_autoptr(QmiMessageWdsCreateProfileOutput) output = NULL;
 
-    ctx = g_task_get_task_data (task);
     self = g_task_get_source_object (task);
+    ctx = g_task_get_task_data (task);
 
     output = qmi_client_wds_create_profile_finish (client, res, &error);
     if (!output) {
-        store_profile_complete (task, error);
-        return;
-    }
-
-    if (!qmi_message_wds_create_profile_output_get_result (output, &error)) {
+        g_task_return_error (task, error);
+    } else if (!qmi_message_wds_create_profile_output_get_result (output, &error)) {
         QmiWdsDsProfileError ds_profile_error;
 
         if (g_error_matches (error, QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_INVALID_PROFILE_TYPE) &&
@@ -6699,24 +6653,19 @@ create_profile_ready (QmiClientWds *client,
             store_profile_run (task);
             return;
         }
-
         if (g_error_matches (error, QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_EXTENDED_INTERNAL) &&
             qmi_message_wds_create_profile_output_get_extended_error_code (output, &ds_profile_error, NULL)) {
             g_prefix_error (&error, "DS profile error: %s: ", qmi_wds_ds_profile_error_get_string (ds_profile_error));
         }
         g_prefix_error (&error, "Couldn't create profile: ");
-        store_profile_complete (task, error);
-        return;
+        g_task_return_error (task, error);
+    } else if (!qmi_message_wds_create_profile_output_get_profile_identifier (output, NULL, &profile_index, &error)) {
+        g_task_return_error (task, error);
+    } else {
+        ctx->profile_id = profile_index;
+        g_task_return_boolean (task, TRUE);
     }
-
-    if (!qmi_message_wds_create_profile_output_get_profile_identifier (output, NULL, &profile_index, &error)) {
-        store_profile_complete (task, error);
-        return;
-    }
-
-    /* success */
-    ctx->profile_id = profile_index;
-    store_profile_complete (task, NULL);
+    g_object_unref (task);
 }
 
 static void
@@ -6833,7 +6782,6 @@ modem_3gpp_profile_manager_store_profile (MMIfaceModem3gppProfileManager *self,
         return;
     }
 
-    profile_changed_indication_ignore (MM_BROADBAND_MODEM_QMI (self), TRUE);
     store_profile_run (task);
 }
 
@@ -6848,44 +6796,21 @@ modem_3gpp_profile_manager_delete_profile_finish (MMIfaceModem3gppProfileManager
     return g_task_propagate_boolean (G_TASK (res), error);
 }
 
-static gboolean
-delete_profile_complete_wait (GTask *task)
-{
-    MMBroadbandModemQmi *self;
-
-    self = g_task_get_source_object (task);
-
-    /* On a successful operation, we were still ignoring the indications */
-    profile_changed_indication_ignore (self, FALSE);
-    g_task_return_boolean (task, TRUE);
-    g_object_unref (task);
-
-    return G_SOURCE_REMOVE;
-}
-
 static void
 delete_profile_ready (QmiClientWds *client,
                       GAsyncResult *res,
                       GTask        *task)
 {
-    MMBroadbandModemQmi *self;
-    GError              *error = NULL;
+    GError *error = NULL;
     g_autoptr(QmiMessageWdsDeleteProfileOutput) output = NULL;
-
-    self = g_task_get_source_object (task);
 
     output = qmi_client_wds_delete_profile_finish (client, res, &error);
     if (!output || !qmi_message_wds_delete_profile_output_get_result (output, &error)) {
-        profile_changed_indication_ignore (self, FALSE);
         g_prefix_error (&error, "Couldn't delete profile: ");
         g_task_return_error (task, error);
-        g_object_unref (task);
-        return;
-    }
-
-    g_timeout_add (IGNORED_PROFILE_CHANGED_INDICATION_TIMEOUT_MS,
-                   (GSourceFunc) delete_profile_complete_wait,
-                   task);
+    } else
+        g_task_return_boolean (task, TRUE);
+    g_object_unref (task);
 }
 
 static void
@@ -6917,7 +6842,6 @@ modem_3gpp_profile_manager_delete_profile (MMIfaceModem3gppProfileManager *self,
     input = qmi_message_wds_delete_profile_input_new ();
     qmi_message_wds_delete_profile_input_set_profile_identifier (input, QMI_WDS_PROFILE_TYPE_3GPP, profile_id, NULL);
 
-    profile_changed_indication_ignore (MM_BROADBAND_MODEM_QMI (self), TRUE);
     qmi_client_wds_delete_profile (QMI_CLIENT_WDS (client),
                                    input,
                                    10,
@@ -6946,36 +6870,8 @@ profile_changed_indication_received (QmiClientWds                         *clien
                                      QmiIndicationWdsProfileChangedOutput *output,
                                      MMBroadbandModemQmi                  *self)
 {
-    if (self->priv->profile_changed_indication_ignored > 0) {
-        mm_obj_dbg (self, "profile changed indication ignored");
-        return;
-    }
-
     mm_obj_dbg (self, "profile changed indication was received");
     mm_iface_modem_3gpp_profile_manager_updated (MM_IFACE_MODEM_3GPP_PROFILE_MANAGER (self));
-}
-
-static void
-profile_changed_indication_ignore (MMBroadbandModemQmi *self,
-                                   gboolean             ignore)
-{
-    /* Note: multiple concurrent profile create/update/deletes may be happening,
-     * so ensure the indication ignore logic applies as long as at least one
-     * operation is ongoing. */
-    if (ignore) {
-        g_assert_cmpint (self->priv->profile_changed_indication_ignored, >=, 0);
-        self->priv->profile_changed_indication_ignored++;
-        mm_obj_dbg (self, "ignoring profile update indications during our own operations (%d ongoing)",
-                    self->priv->profile_changed_indication_ignored);
-    } else {
-        g_assert_cmpint (self->priv->profile_changed_indication_ignored, >, 0);
-        self->priv->profile_changed_indication_ignored--;
-        if (self->priv->profile_changed_indication_ignored > 0)
-            mm_obj_dbg (self, "still ignoring profile update indications during our own operations (%d ongoing)",
-                        self->priv->profile_changed_indication_ignored);
-        else
-            mm_obj_dbg (self, "no longer ignoring profile update indications during our own operations");
-    }
 }
 
 /*****************************************************************************/
