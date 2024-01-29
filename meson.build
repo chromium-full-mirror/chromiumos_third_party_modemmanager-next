@@ -3,7 +3,7 @@
 
 project(
   'ModemManager', 'c',
-  version: '1.23.2',
+  version: '1.23.3',
   license: 'GPL2',
   default_options: [
     'buildtype=debugoptimized',
@@ -12,6 +12,11 @@ project(
   ],
   meson_version: '>= 0.53.0',
 )
+
+meson_version = meson.version()
+if meson_version.version_compare('>=0.64')
+  fs = import('fs')
+endif
 
 mm_name = meson.project_name()
 mm_version = meson.project_version()
