@@ -23,7 +23,6 @@
 
 #include <string.h>
 
-
 /*****************************************************************************/
 
 MMModemCapability
@@ -1417,23 +1416,6 @@ mm_nrarfcn_to_frequency (guint32  nrarfcn,
 }
 
 /*****************************************************************************/
-/* Hack for FM350 error translations */
-
-#define FM350_VID 0x14C3
-#define FM350_PID 0x4D75
-
-static guint device_pid;
-static guint device_vid;
-
-void
-mm_store_vid_pid (guint vid,
-                  guint pid)
-{
-    device_vid = vid;
-    device_pid = pid;
-}
-
-/*****************************************************************************/
 
 static const MMMobileEquipmentError mbim_nw_errors[] = {
     [MBIM_NW_ERROR_IMSI_UNKNOWN_IN_HLR] = MM_MOBILE_EQUIPMENT_ERROR_IMSI_UNKNOWN_IN_HSS,
@@ -1490,12 +1472,6 @@ mm_error_from_mbim_nw_error (MbimNwError nw_error,
                              gpointer    log_object)
 {
     const gchar *msg;
-
-    if (device_vid == FM350_VID && device_pid == FM350_PID) {
-        if (nw_error > 100) {
-            nw_error -= 100;  /* Work around to convert AT error to 3GPP Error*/
-        }
-    }
 
     if (nw_error < G_N_ELEMENTS (mbim_nw_errors)) {
         MMMobileEquipmentError  error_code;

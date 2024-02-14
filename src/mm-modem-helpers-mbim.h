@@ -182,9 +182,6 @@ gdouble mm_nrarfcn_to_frequency (guint32  nrarfcn,
 /*****************************************************************************/
 /* MM error translations */
 
-/* Hack for FM350 error translations */
-void mm_store_vid_pid (guint vid, guint pid);
-
 void    mm_register_mbim_errors     (void);
 GError *mm_error_from_mbim_nw_error (MbimNwError nw_error,
                                      gpointer    log_object);
