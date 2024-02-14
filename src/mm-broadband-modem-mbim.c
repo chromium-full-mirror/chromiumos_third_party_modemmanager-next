@@ -409,6 +409,18 @@ mm_broadband_modem_mbim_get_is_lte_attach_info_supported (MMBroadbandModemMbim  
 
 /*****************************************************************************/
 
+guint32
+mm_broadband_modem_mbim_normalize_nw_error (MMBroadbandModemMbim *self,
+                                            guint32               nw_error)
+{
+    if (MM_BROADBAND_MODEM_MBIM_GET_CLASS (self)->normalize_nw_error)
+        return MM_BROADBAND_MODEM_MBIM_GET_CLASS (self)->normalize_nw_error (self, nw_error);
+
+    return nw_error;
+}
+
+/*****************************************************************************/
+
 gboolean
 mm_broadband_modem_mbim_is_context_type_ext_supported (MMBroadbandModemMbim *self)
 {
@@ -4032,6 +4044,7 @@ lte_attach_info_query_ready (MbimDevice   *device,
         if (nw_error) {
             const gchar *nw_error_str;
 
+            nw_error = mm_broadband_modem_mbim_normalize_nw_error (self, nw_error);
             nw_error_str = mbim_nw_error_get_string (nw_error);
             if (nw_error_str)
                 mm_obj_dbg (self, "LTE attach info network error reported: %s", nw_error_str);
@@ -4987,6 +5000,7 @@ common_process_register_state (MMBroadbandModemMbim  *self,
         }
     }
 
+    nw_error = mm_broadband_modem_mbim_normalize_nw_error (self, nw_error);
     nw_error_str = mbim_nw_error_get_string (nw_error);
     available_data_classes_str = mbim_data_class_build_string_from_mask (available_data_classes);
     preferred_data_classes_str = mbim_data_class_build_string_from_mask (preferred_data_classes);
@@ -5103,6 +5117,7 @@ basic_connect_notification_connect (MMBroadbandModemMbim *self,
         ReportDisconnectedStatusContext ctx;
         g_autoptr(GError)               connection_error = NULL;
 
+        nw_error = mm_broadband_modem_mbim_normalize_nw_error (self, nw_error);
         connection_error = mm_error_from_mbim_nw_error (nw_error, self);
 
         mm_obj_dbg (self, "session ID '%u' was deactivated: %s", session_id, connection_error->message);
@@ -5430,6 +5445,7 @@ common_process_packet_service (MMBroadbandModemMbim     *self,
     }
 
     frequency_range_str = mbim_frequency_range_build_string_from_mask (frequency_range);
+    nw_error = mm_broadband_modem_mbim_normalize_nw_error (self, nw_error);
     nw_error_str = mbim_nw_error_get_string (nw_error);
 
     mm_obj_dbg (self, "packet service update:");
@@ -5762,6 +5778,7 @@ ms_basic_connect_extensions_notification_lte_attach_info (MMBroadbandModemMbim *
     if (nw_error) {
         const gchar *nw_error_str;
 
+        nw_error = mm_broadband_modem_mbim_normalize_nw_error (self, nw_error);
         nw_error_str = mbim_nw_error_get_string (nw_error);
         if (nw_error_str)
             mm_obj_dbg (self, "LTE attach info network error reported: %s", nw_error_str);
@@ -6846,9 +6863,9 @@ register_state_set_ready (MbimDevice   *device,
         (mbim_message_response_get_result (response, MBIM_MESSAGE_TYPE_COMMAND_DONE, &error) ||
          g_error_matches (error, MBIM_STATUS_ERROR, MBIM_STATUS_ERROR_FAILURE))) {
         g_autoptr(GError) inner_error = NULL;
-        MbimNwError       nw_error = 0;
+        MbimNwError       normalized_nw_error = 0;
 
-        if (!common_process_register_state (self, device, response, &nw_error, &inner_error)) {
+        if (!common_process_register_state (self, device, response, &normalized_nw_error, &inner_error)) {
             mm_obj_warn (self, "%s", inner_error->message);
             /* Prefer the error from the result to the parsing error */
             if (!error)
@@ -6864,9 +6881,9 @@ register_state_set_ready (MbimDevice   *device,
              * that is the case, log about it and ignore the error; we are anyway
              * reloading the registration info after the set, so it should not be
              * a big issue. */
-            if (nw_error) {
+            if (normalized_nw_error) {
                 g_clear_error (&error);
-                error = mm_error_from_mbim_nw_error (nw_error, self);
+                error = mm_error_from_mbim_nw_error (normalized_nw_error, self);
             }
         }
     }
@@ -9807,12 +9824,12 @@ packet_service_set_ready (MbimDevice   *device,
         (mbim_message_response_get_result (response, MBIM_MESSAGE_TYPE_COMMAND_DONE, &error) ||
          g_error_matches (error, MBIM_STATUS_ERROR, MBIM_STATUS_ERROR_FAILURE))) {
         g_autoptr(GError) inner_error = NULL;
-        guint32           nw_error = 0;
+        guint32           normalized_nw_error = 0;
 
         if (!common_process_packet_service (self,
                                             device,
                                             response,
-                                            &nw_error,
+                                            &normalized_nw_error,
                                             &packet_service_state,
                                             &inner_error)) {
             mm_obj_warn (self, "%s", inner_error->message);
@@ -9821,9 +9838,9 @@ packet_service_set_ready (MbimDevice   *device,
                 error = g_steal_pointer (&inner_error);
         } else {
             /* Prefer the NW error if available */
-            if (nw_error) {
+            if (normalized_nw_error) {
                 g_clear_error (&error);
-                error = mm_error_from_mbim_nw_error (nw_error, self);
+                error = mm_error_from_mbim_nw_error (normalized_nw_error, self);
             }
         }
     }
