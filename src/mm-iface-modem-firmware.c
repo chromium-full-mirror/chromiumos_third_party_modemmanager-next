@@ -147,6 +147,7 @@ list_auth_ready (MMBaseModem *self,
         return;
     }
 
+    mm_obj_info (self, "processing user request to load firmware list...");
     MM_IFACE_MODEM_FIRMWARE_GET_INTERFACE (self)->load_list (MM_IFACE_MODEM_FIRMWARE (self),
                                                              (GAsyncReadyCallback)load_list_ready,
                                                              ctx);
@@ -229,6 +230,7 @@ select_auth_ready (MMBaseModem *self,
         return;
     }
 
+    mm_obj_info (self, "processing user request to select firmware...");
     MM_IFACE_MODEM_FIRMWARE_GET_INTERFACE (self)->change_current (MM_IFACE_MODEM_FIRMWARE (self),
                                                                   ctx->name,
                                                                   (GAsyncReadyCallback)change_current_ready,
@@ -350,7 +352,13 @@ mm_iface_firmware_build_generic_device_ids (MMIfaceModemFirmware  *self,
 #endif
     if (!primary)
         primary = MM_PORT (mm_base_modem_peek_port_primary (MM_BASE_MODEM (self)));
-    g_assert (primary != NULL);
+
+    if (!primary) {
+        g_set_error (error, MM_CORE_ERROR, MM_CORE_ERROR_FAILED,
+                     "No valid primary port");
+        return NULL;
+    }
+
     rid = mm_kernel_device_get_physdev_revision (mm_port_peek_kernel_device (primary));
 
     subsystem = mm_kernel_device_get_physdev_subsystem (mm_port_peek_kernel_device (primary));

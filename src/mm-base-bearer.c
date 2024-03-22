@@ -1162,6 +1162,7 @@ handle_connect_auth_ready (MMBaseModem *modem,
         return;
     }
 
+    mm_obj_info (ctx->self, "processing user request to connect...");
     mm_base_bearer_connect (ctx->self,
                             (GAsyncReadyCallback)handle_connect_ready,
                             ctx);
@@ -1179,8 +1180,6 @@ handle_connect (MMBaseBearer *self,
     g_object_get (self,
                   MM_BASE_BEARER_MODEM, &ctx->modem,
                   NULL);
-
-    mm_obj_dbg (self, "user request to connect");
 
     mm_base_modem_authorize (ctx->modem,
                              invocation,
@@ -1281,8 +1280,6 @@ mm_base_bearer_disconnect (MMBaseBearer *self,
         return;
     }
 
-    mm_obj_dbg (self, "disconnecting...");
-
     /* If currently connecting, try to cancel that operation, and wait to get
      * disconnected. */
     if (self->priv->status == MM_BEARER_STATUS_CONNECTING) {
@@ -1354,6 +1351,7 @@ handle_disconnect_auth_ready (MMBaseModem *modem,
         return;
     }
 
+    mm_obj_info (ctx->self, "processing user request to disconnect...");
     mm_base_bearer_disconnect (ctx->self,
                                (GAsyncReadyCallback)handle_disconnect_ready,
                                ctx);
@@ -1371,8 +1369,6 @@ handle_disconnect (MMBaseBearer *self,
     g_object_get (self,
                   MM_BASE_BEARER_MODEM, &ctx->modem,
                   NULL);
-
-    mm_obj_dbg (self, "user request to disconnect");
 
     mm_base_modem_authorize (ctx->modem,
                              invocation,
