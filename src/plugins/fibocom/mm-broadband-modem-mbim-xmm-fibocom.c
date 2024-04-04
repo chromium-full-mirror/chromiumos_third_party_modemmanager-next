@@ -28,13 +28,16 @@
 #include "mm-broadband-modem-mbim-xmm-fibocom.h"
 #include "mm-shared-fibocom.h"
 
+static void iface_modem_init          (MMIfaceModem         *iface);
 static void iface_modem_3gpp_init     (MMIfaceModem3gpp     *iface);
 static void shared_fibocom_init       (MMSharedFibocom      *iface);
 static void iface_modem_firmware_init (MMIfaceModemFirmware *iface);
 
 static MMIfaceModem3gpp *iface_modem_3gpp_parent;
+static MMIfaceModem     *iface_modem_parent;
 
 G_DEFINE_TYPE_EXTENDED (MMBroadbandModemMbimXmmFibocom, mm_broadband_modem_mbim_xmm_fibocom, MM_TYPE_BROADBAND_MODEM_MBIM_XMM, 0,
+                        G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM, iface_modem_init)
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM_3GPP, iface_modem_3gpp_init)
                         G_IMPLEMENT_INTERFACE (MM_TYPE_SHARED_FIBOCOM,  shared_fibocom_init)
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM_FIRMWARE, iface_modem_firmware_init))
@@ -80,6 +83,53 @@ iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
     iface->set_initial_eps_bearer_settings        = mm_shared_fibocom_set_initial_eps_bearer_settings;
     iface->set_initial_eps_bearer_settings_finish = mm_shared_fibocom_set_initial_eps_bearer_settings_finish;
 }
+
+static gchar *
+load_revision_finish (MMIfaceModem  *self,
+                      GAsyncResult  *res,
+                      GError       **error)
+{
+    return g_task_propagate_pointer (G_TASK (res), error);
+}
+
+static void
+parent_load_revision_ready (MMIfaceModem *self,
+                            GAsyncResult *res,
+                            GTask        *task)
+{
+    GError *error = NULL;
+    gchar  *revision;
+
+    revision = iface_modem_parent->load_revision_finish (self, res, &error);
+    if (!revision) {
+        g_task_return_error (task, error);
+    } else {
+        mm_shared_fibocom_process_version_features (MM_SHARED_FIBOCOM (self), revision);
+        g_task_return_pointer (task, revision, g_free);
+    }
+    g_object_unref (task);
+}
+
+static void
+load_revision (MMIfaceModem        *self,
+               GAsyncReadyCallback  callback,
+               gpointer             user_data)
+{
+    g_assert (iface_modem_parent->load_revision);
+    g_assert (iface_modem_parent->load_revision_finish);
+    iface_modem_parent->load_revision (self,
+                                       (GAsyncReadyCallback)parent_load_revision_ready,
+                                       g_task_new (self, NULL, callback, user_data));
+}
+
+static void
+iface_modem_init (MMIfaceModem *iface)
+{
+    iface_modem_parent = g_type_interface_peek_parent (iface);
+    iface->load_revision = load_revision;
+    iface->load_revision_finish = load_revision_finish;
+}
+
 
 static void
 iface_modem_firmware_init (MMIfaceModemFirmware *iface)

@@ -41,6 +41,7 @@ static GQuark private_quark;
 typedef struct {
     /* 3GPP interface support */
     MMIfaceModem3gpp *iface_modem_3gpp_parent;
+    gboolean custom_l850_att_310280_attach_required;
 } Private;
 
 static void
@@ -64,6 +65,7 @@ get_private (MMSharedFibocom *self)
         /* Setup parent class' MMIfaceModem3gpp */
         g_assert (MM_SHARED_FIBOCOM_GET_INTERFACE (self)->peek_parent_3gpp_interface);
         priv->iface_modem_3gpp_parent = MM_SHARED_FIBOCOM_GET_INTERFACE (self)->peek_parent_3gpp_interface (self);
+        priv->custom_l850_att_310280_attach_required = TRUE;
 
         g_object_set_qdata_full (G_OBJECT (self), private_quark, priv, (GDestroyNotify)private_free);
     }
@@ -295,6 +297,61 @@ parent_att_hack_before_set_lte_attach_configuration_query_ready (MbimDevice   *d
         mbim_message_unref (response);
 }
 
+#define L850_MR8_VERSION 18500, 5001, 0, 7
+
+static inline gboolean
+compare_l850_version (guint A1, guint A2, guint A3,
+                      guint A4, guint A5, guint A6,
+                      guint B1, guint B2, guint B3, guint B4)
+{
+    return ((A1 == B1) && (A2 == B2) && (A4 >= B4));
+}
+
+void
+mm_shared_fibocom_process_version_features (MMSharedFibocom *self,
+                                            const gchar     *revision)
+{
+    g_auto(GStrv) split = NULL;
+    Private      *priv;
+    guint         A1;
+    guint         A2;
+    guint         A3;
+    guint         A4;
+    guint         A5;
+    guint         A6;
+
+    /* Exit early if not L850 */
+    if (!(mm_base_modem_get_vendor_id (MM_BASE_MODEM (self)) == 0x2cb7 &&
+          mm_base_modem_get_product_id (MM_BASE_MODEM (self)) == 0x0007)) {
+        return;
+    }
+
+    priv = get_private (self);
+
+    split = g_strsplit_set (revision, "._", -1);
+    if (!split || g_strv_length (split) < 6) {
+        mm_obj_warn (self, "failed to process firmware version string: splitting failed");
+        return;
+    }
+
+    if (!mm_get_uint_from_str (split[0], &A1) ||
+        !mm_get_uint_from_str (split[1], &A2) ||
+        !mm_get_uint_from_str (split[2], &A3) ||
+        !mm_get_uint_from_str (split[3], &A4) ||
+        !mm_get_uint_from_str (split[4], &A5) ||
+        !mm_get_uint_from_str (split[5], &A6)) {
+        mm_obj_warn (self, "failed to process firmware version string: failed to convert to integer");
+        return;
+    }
+
+    /* Check if fix for ATT attach APN for 310/280 is supported on L850 */
+    priv->custom_l850_att_310280_attach_required =
+        !compare_l850_version (A1, A2, A3, A4, A5, A6,
+                              L850_MR8_VERSION);
+    mm_obj_info (self, "custom attach logic for AT&T 310280 %s needed",
+                 priv->custom_l850_att_310280_attach_required ? "is" : "not");
+}
+
 /* This function is functionally identical to set_initial_eps_bearer_settings in mm-broadband-modem-mbim.c */
 static void
 parent_att_hack_set_initial_eps_bearer_settings (MMIfaceModem3gpp    *_self,
@@ -382,9 +439,14 @@ parent_set_initial_eps_bearer_settings (GTask *task)
         operator_identifier = mm_gdbus_sim_get_operator_identifier(modem_sim);
     apn = mm_bearer_properties_get_apn (ctx->config);
     mm_obj_info (self, "operator_identifier: '%s' apn='%s'", operator_identifier, apn);
+
+    /* Fix for attach APN issue with ATT SIM cards MCC/MNC 310/280
+     * is available on L850 MR8. Execute custom attach logic only
+     * for old versions*/
     if (mm_base_modem_get_vendor_id (MM_BASE_MODEM (self)) == 0x2cb7 &&
         mm_base_modem_get_product_id (MM_BASE_MODEM (self)) == 0x0007 &&
-        operator_identifier && g_strcmp0(operator_identifier, "310280") == 0) {
+        operator_identifier && g_strcmp0(operator_identifier, "310280") == 0 &&
+        priv->custom_l850_att_310280_attach_required) {
         mm_obj_info (self, "executing custom attach logic for AT&T 310280");
         parent_att_hack_set_initial_eps_bearer_settings (MM_IFACE_MODEM_3GPP (self),
                                                          ctx->config,

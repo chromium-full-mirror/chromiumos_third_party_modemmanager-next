@@ -60,4 +60,7 @@ MMFirmwareUpdateSettings *mm_shared_fibocom_firmware_load_update_settings_finish
                                                                                   GAsyncResult          *res,
                                                                                   GError               **error);
 
+void mm_shared_fibocom_process_version_features (MMSharedFibocom *self,
+                                                 const gchar     *revision);
+
 #endif /* MM_SHARED_FIBOCOM_H */
