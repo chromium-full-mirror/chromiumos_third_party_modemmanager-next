@@ -59,6 +59,8 @@
 #include "mm-base-modem.h"
 #include "mm-iface-modem.h"
 
+#include "mm-dispatcher-modem-setup.h"
+
 static void initable_iface_init   (GInitableIface       *iface);
 static void log_object_iface_init (MMLogObjectInterface *iface);
 
@@ -188,9 +190,51 @@ find_device_by_physdev_uid (MMBaseManager *self,
 
 /*****************************************************************************/
 
+static void
+initialize_ready (MMBaseModem   *modem,
+                  GAsyncResult  *res)
+{
+    g_autoptr(GError) error = NULL;
+
+    if (!mm_base_modem_initialize_finish (modem, res, &error)) {
+        if (g_error_matches (error, MM_CORE_ERROR, MM_CORE_ERROR_ABORTED)) {
+            /* FATAL error, won't even be exported in DBus */
+            mm_obj_err (modem, "fatal error initializing: %s", error->message);
+        } else {
+            /* non-fatal error */
+            mm_obj_warn (modem, "error initializing: %s", error->message);
+            mm_base_modem_set_valid (modem, TRUE);
+        }
+    } else {
+        mm_obj_dbg (modem, "modem initialized");
+        mm_base_modem_set_valid (modem, TRUE);
+    }
+}
+
+static void
+modem_initialize (MMBaseManager *self,
+                  MMDevice      *device)
+{
+    MMBaseModem *modem;
+
+    modem = mm_device_peek_modem (device);
+    if (!modem) {
+        mm_obj_warn (self, "cannot initialize modem at device '%s': not found",
+                     mm_device_get_uid (device));
+        return;
+    }
+
+    mm_obj_dbg (modem, "modem initializing...");
+    mm_base_modem_initialize (modem,
+                              (GAsyncReadyCallback)initialize_ready,
+                              NULL);
+}
+
+/*****************************************************************************/
+
 typedef struct {
     MMBaseManager *self;
-    MMDevice *device;
+    MMDevice      *device;
 } FindDeviceSupportContext;
 
 static void
@@ -199,6 +243,81 @@ find_device_support_context_free (FindDeviceSupportContext *ctx)
     g_object_unref (ctx->self);
     g_object_unref (ctx->device);
     g_slice_free (FindDeviceSupportContext, ctx);
+}
+
+static void
+dispatcher_modem_setup_ready (MMDispatcherModemSetup    *dispatcher,
+                              GAsyncResult              *res,
+                              FindDeviceSupportContext  *ctx)
+{
+    g_autoptr(GError) error = NULL;
+
+    if (!mm_dispatcher_modem_setup_run_finish (dispatcher, res, &error)) {
+        if (!g_error_matches(error, MM_CORE_ERROR, MM_CORE_ERROR_NOT_FOUND))
+            mm_obj_warn (ctx->self, "couldn't run setup for device '%s': %s",
+                         mm_device_get_uid (ctx->device), error->message);
+        else
+            mm_obj_dbg (ctx->self, "no need to run setup for device '%s'",
+                        mm_device_get_uid (ctx->device));
+    } else
+        mm_obj_dbg (ctx->self, "setup for device '%s' finished",
+                    mm_device_get_uid (ctx->device));
+
+    /* launch async modem initialization */
+    modem_initialize (ctx->self, ctx->device);
+
+    find_device_support_context_free (ctx);
+}
+
+static void
+modem_setup (FindDeviceSupportContext *ctx)
+{
+    guint                     n_port_infos = 0;
+    g_auto(GStrv)             modem_ports = NULL;
+    MMDispatcherModemSetup   *dispatcher;
+    MMModemPortInfo          *port_infos;
+    MMBaseModem              *modem = NULL;
+    GPtrArray                *aux;
+    guint                     i;
+
+    dispatcher = mm_dispatcher_modem_setup_get ();
+
+    modem = mm_device_peek_modem (ctx->device);
+
+    aux = g_ptr_array_new ();
+    port_infos = mm_base_modem_get_port_infos (modem, &n_port_infos);
+    for (i = 0; i < n_port_infos; i++) {
+        switch (port_infos[i].type) {
+            case MM_MODEM_PORT_TYPE_AT:
+            case MM_MODEM_PORT_TYPE_QMI:
+            case MM_MODEM_PORT_TYPE_MBIM:
+                g_ptr_array_add (aux, g_strdup (port_infos[i].name));
+                break;
+            case MM_MODEM_PORT_TYPE_UNKNOWN:
+            case MM_MODEM_PORT_TYPE_NET:
+            case MM_MODEM_PORT_TYPE_QCDM:
+            case MM_MODEM_PORT_TYPE_GPS:
+            case MM_MODEM_PORT_TYPE_AUDIO:
+            case MM_MODEM_PORT_TYPE_IGNORED:
+            default:
+                break;
+        }
+    }
+
+    mm_modem_port_info_array_free (port_infos, n_port_infos);
+    g_ptr_array_add (aux, NULL);
+    modem_ports = (GStrv) g_ptr_array_free (aux, FALSE);
+
+    mm_obj_msg (ctx->self, "running setup for device '%s'...",
+                mm_device_get_uid (ctx->device));
+    mm_dispatcher_modem_setup_run (dispatcher,
+                                   mm_base_modem_get_vendor_id (modem),
+                                   mm_base_modem_get_product_id (modem),
+                                   mm_base_modem_get_device (modem),
+                                   modem_ports,
+                                   NULL,
+                                   (GAsyncReadyCallback)dispatcher_modem_setup_ready,
+                                   ctx);
 }
 
 static void
@@ -238,7 +357,8 @@ device_support_check_ready (MMPluginManager          *plugin_manager,
     /* Modem now created */
     mm_obj_msg (ctx->self, "modem for device '%s' successfully created",
                 mm_device_get_uid (ctx->device));
-    find_device_support_context_free (ctx);
+
+    modem_setup (ctx);
 }
 
 static gboolean is_device_inhibited           (MMBaseManager  *self,
@@ -1619,6 +1739,9 @@ handle_set_profile (MmGdbusTest *skeleton,
 
     mm_obj_msg (self, "modem for virtual device '%s' successfully created",
                 mm_device_get_uid (device));
+
+    /* launch async modem initialization */
+    modem_initialize (self, device);
 
 out:
 

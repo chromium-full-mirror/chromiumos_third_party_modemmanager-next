@@ -1135,26 +1135,6 @@ mm_base_modem_peek_best_at_port (MMBaseModem *self,
     return NULL;
 }
 
-gboolean
-mm_base_modem_has_at_port (MMBaseModem *self)
-{
-    GHashTableIter iter;
-    gpointer value;
-    gpointer key;
-
-    if (!self->priv->ports)
-        return FALSE;
-
-    /* We'll iterate the ht of ports, looking for any port which is AT */
-    g_hash_table_iter_init (&iter, self->priv->ports);
-    while (g_hash_table_iter_next (&iter, &key, &value)) {
-        if (MM_IS_PORT_SERIAL_AT (value))
-            return TRUE;
-    }
-
-    return FALSE;
-}
-
 static gint
 port_info_cmp (const MMModemPortInfo *a,
                const MMModemPortInfo *b)
@@ -1302,27 +1282,6 @@ mm_base_modem_get_port (MMBaseModem *self,
 
     port = mm_base_modem_peek_port (self, name);
     return (port ? g_object_ref (port) : NULL);
-}
-
-static void
-initialize_ready (MMBaseModem *self,
-                  GAsyncResult *res)
-{
-    g_autoptr(GError) error = NULL;
-
-    if (!mm_base_modem_initialize_finish (self, res, &error)) {
-        if (g_error_matches (error, MM_CORE_ERROR, MM_CORE_ERROR_ABORTED)) {
-            /* FATAL error, won't even be exported in DBus */
-            mm_obj_err (self, "fatal error initializing: %s", error->message);
-        } else {
-            /* non-fatal error */
-            mm_obj_warn (self, "error initializing: %s", error->message);
-            mm_base_modem_set_valid (self, TRUE);
-        }
-    } else {
-        mm_obj_dbg (self, "modem initialized");
-        mm_base_modem_set_valid (self, TRUE);
-    }
 }
 
 static inline void
@@ -1646,11 +1605,6 @@ mm_base_modem_organize_ports (MMBaseModem *self,
         self->priv->mbim = g_steal_pointer (&mbim);
     }
 #endif
-
-    /* As soon as we get the ports organized, we initialize the modem */
-    mm_base_modem_initialize (self,
-                              (GAsyncReadyCallback)initialize_ready,
-                              NULL);
 
     return TRUE;
 }

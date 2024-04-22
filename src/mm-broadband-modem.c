@@ -3972,9 +3972,11 @@ ifc_test_ready (MMBaseModem  *_self,
         goto out;
     flow_control_supported_str = mm_flow_control_build_string_from_mask (flow_control_supported);
 
-    port = mm_base_modem_peek_best_at_port (_self, &error);
-    if (!port)
+    port = mm_base_modem_peek_port_primary (_self);
+    if (!port) {
+        g_set_error (&error, MM_CORE_ERROR, MM_CORE_ERROR_FAILED, "No primary AT port");
         goto out;
+    }
 
     flow_control_requested = mm_port_serial_get_flow_control (MM_PORT_SERIAL (port));
     if (flow_control_requested != MM_FLOW_CONTROL_UNKNOWN) {
@@ -5001,6 +5003,19 @@ modem_3gpp_scan_networks (MMIfaceModem3gpp *self,
 /*****************************************************************************/
 /* Register in network (3GPP interface) */
 
+typedef struct {
+    gchar          *operator_id;
+    MMPortSerialAt *port;
+} RegisterInNetworkContext;
+
+static void
+register_in_network_context_free (RegisterInNetworkContext *ctx)
+{
+    g_free (ctx->operator_id);
+    g_object_unref (ctx->port);
+    g_slice_free (RegisterInNetworkContext, ctx);
+}
+
 static gboolean
 modem_3gpp_register_in_network_finish (MMIfaceModem3gpp  *self,
                                        GAsyncResult      *res,
@@ -5032,42 +5047,48 @@ cops_ascii_set_ready (MMBaseModem  *_self,
     g_autoptr(GError)  error = NULL;
 
     if (!mm_base_modem_at_command_full_finish (_self, res, &error)) {
-        /* If it failed with an unsupported error, retry with current modem charset */
-        if (g_error_matches (error, MM_MOBILE_EQUIPMENT_ERROR, MM_MOBILE_EQUIPMENT_ERROR_NOT_SUPPORTED)) {
-            g_autoptr(GError)  enc_error = NULL;
-            g_autofree gchar  *operator_id_enc = NULL;
-            gchar             *operator_id;
+        RegisterInNetworkContext *ctx;
+        g_autoptr(GError)         enc_error = NULL;
+        g_autofree gchar         *operator_id_enc = NULL;
+        g_autofree gchar         *command = NULL;
 
-            /* try to encode to current charset */
-            operator_id = g_task_get_task_data (task);
-            operator_id_enc = mm_modem_charset_str_from_utf8 (operator_id, self->priv->modem_current_charset, FALSE, &enc_error);
-            if (!operator_id_enc) {
-                mm_obj_dbg (self, "couldn't convert operator id to current charset: %s", enc_error->message);
-                g_task_return_error (task, g_steal_pointer (&error));
-                g_object_unref (task);
-                return;
-            }
-
-            /* retry only if encoded string is different to the non-encoded one */
-            if (g_strcmp0 (operator_id, operator_id_enc) != 0) {
-                g_autofree gchar *command = NULL;
-
-                command = g_strdup_printf ("+COPS=1,2,\"%s\"", operator_id_enc);
-                mm_base_modem_at_command_full (_self,
-                                               mm_base_modem_peek_best_at_port (_self, NULL),
-                                               command,
-                                               120,
-                                               FALSE,
-                                               FALSE, /* raw */
-                                               g_task_get_cancellable (task),
-                                               (GAsyncReadyCallback)cops_set_ready,
-                                               task);
-                return;
-            }
+        if (!g_error_matches (error, MM_MOBILE_EQUIPMENT_ERROR, MM_MOBILE_EQUIPMENT_ERROR_NOT_SUPPORTED)) {
+            g_task_return_error (task, g_steal_pointer (&error));
+            g_object_unref (task);
+            return;
         }
-        g_task_return_error (task, g_steal_pointer (&error));
-    } else
-        g_task_return_boolean (task, TRUE);
+
+        /* If it failed with an unsupported error, retry with current modem charset */
+        ctx = g_task_get_task_data (task);
+        operator_id_enc = mm_modem_charset_str_from_utf8 (ctx->operator_id, self->priv->modem_current_charset, FALSE, &enc_error);
+        if (!operator_id_enc) {
+            mm_obj_dbg (self, "couldn't convert operator id to current charset: %s", enc_error->message);
+            g_task_return_error (task, g_steal_pointer (&error));
+            g_object_unref (task);
+            return;
+        }
+
+        /* retry only if encoded string is different to the non-encoded one */
+        if (g_strcmp0 (ctx->operator_id, operator_id_enc) == 0) {
+            g_task_return_error (task, g_steal_pointer (&error));
+            g_object_unref (task);
+            return;
+        }
+
+        command = g_strdup_printf ("+COPS=1,2,\"%s\"", operator_id_enc);
+        mm_base_modem_at_command_full (_self,
+                                       ctx->port,
+                                       command,
+                                       120,
+                                       FALSE,
+                                       FALSE, /* raw */
+                                       g_task_get_cancellable (task),
+                                       (GAsyncReadyCallback)cops_set_ready,
+                                       task);
+        return;
+    }
+
+    g_task_return_boolean (task, TRUE);
     g_object_unref (task);
 }
 
@@ -5078,17 +5099,31 @@ modem_3gpp_register_in_network (MMIfaceModem3gpp    *self,
                                 GAsyncReadyCallback  callback,
                                 gpointer             user_data)
 {
-    GTask *task;
-    gchar *command;
+    RegisterInNetworkContext *ctx;
+    GTask                    *task;
+    MMPortSerialAt           *port;
+    GError                   *error = NULL;
+    g_autofree gchar         *command = NULL;
 
     task = g_task_new (self, cancellable, callback, user_data);
 
+    port = mm_base_modem_peek_best_at_port (MM_BASE_MODEM (self), &error);
+    if (!port) {
+        g_task_return_error (task, error);
+        g_object_unref (task);
+        return;
+    }
+
+    ctx = g_slice_new0 (RegisterInNetworkContext);
+    ctx->port = g_object_ref (port);
+    ctx->operator_id = g_strdup (operator_id);
+    g_task_set_task_data (task, ctx, (GDestroyNotify)register_in_network_context_free);
+
     /* Trigger automatic network registration if no explicit operator id given */
-    if (!operator_id) {
-        /* Note that '+COPS=0,,' (same but with commas) won't work in some Nokia
-         * phones */
+    if (!ctx->operator_id) {
+        /* Note that '+COPS=0,,' (same but with commas) won't work in some Nokia phones */
         mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                       mm_base_modem_peek_best_at_port (MM_BASE_MODEM (self), NULL),
+                                       port,
                                        "+COPS=0",
                                        120,
                                        FALSE,
@@ -5099,14 +5134,10 @@ modem_3gpp_register_in_network (MMIfaceModem3gpp    *self,
         return;
     }
 
-    /* Store operator id in context, in case we need to retry with the current
-     * modem charset */
-    g_task_set_task_data (task, g_strdup (operator_id), g_free);
-
     /* Use the operator id given in ASCII initially */
-    command = g_strdup_printf ("+COPS=1,2,\"%s\"", operator_id);
+    command = g_strdup_printf ("+COPS=1,2,\"%s\"", ctx->operator_id);
     mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                   mm_base_modem_peek_best_at_port (MM_BASE_MODEM (self), NULL),
+                                   port,
                                    command,
                                    120,
                                    FALSE,
@@ -5114,7 +5145,6 @@ modem_3gpp_register_in_network (MMIfaceModem3gpp    *self,
                                    cancellable,
                                    (GAsyncReadyCallback)cops_ascii_set_ready,
                                    task);
-    g_free (command);
 }
 
 /*****************************************************************************/
@@ -5461,61 +5491,62 @@ modem_3gpp_create_initial_eps_bearer (MMIfaceModem3gpp   *self,
 /* Enable/Disable unsolicited registration events (3GPP interface) */
 
 typedef struct {
-    gboolean enable; /* TRUE for enabling, FALSE for disabling */
-    gboolean run_cs;
-    gboolean run_ps;
-    gboolean run_eps;
-    gboolean running_cs;
-    gboolean running_ps;
-    gboolean running_eps;
-    GError *cs_error;
-    GError *ps_error;
-    GError *eps_error;
-    gboolean secondary_sequence;
-    gboolean secondary_done;
+    MMPortSerialAt *primary;
+    MMPortSerialAt *secondary; /* optional */
+    gboolean        enable; /* TRUE for enabling, FALSE for disabling */
+    gboolean        run_cs;
+    gboolean        run_ps;
+    gboolean        run_eps;
+    gboolean        running_cs;
+    gboolean        running_ps;
+    gboolean        running_eps;
+    GError         *cs_error;
+    GError         *ps_error;
+    GError         *eps_error;
+    gboolean        secondary_sequence;
+    gboolean        secondary_done;
 } UnsolicitedRegistrationEventsContext;
 
 static void
 unsolicited_registration_events_context_free (UnsolicitedRegistrationEventsContext *ctx)
 {
-    if (ctx->cs_error)
-        g_error_free (ctx->cs_error);
-    if (ctx->ps_error)
-        g_error_free (ctx->ps_error);
-    if (ctx->eps_error)
-        g_error_free (ctx->eps_error);
-    g_free (ctx);
+    g_clear_object (&ctx->primary);
+    g_clear_object (&ctx->secondary);
+    g_clear_error (&ctx->cs_error);
+    g_clear_error (&ctx->ps_error);
+    g_clear_error (&ctx->eps_error);
+    g_slice_free (UnsolicitedRegistrationEventsContext, ctx);
 }
 
 static GTask *
-unsolicited_registration_events_task_new (MMBroadbandModem *self,
-                                          gboolean enable,
-                                          gboolean cs_supported,
-                                          gboolean ps_supported,
-                                          gboolean eps_supported,
+unsolicited_registration_events_task_new (MMBroadbandModem   *self,
+                                          gboolean            enable,
+                                          gboolean            cs_supported,
+                                          gboolean            ps_supported,
+                                          gboolean            eps_supported,
                                           GAsyncReadyCallback callback,
-                                          gpointer user_data)
+                                          gpointer            user_data)
 {
     UnsolicitedRegistrationEventsContext *ctx;
     GTask *task;
 
-    ctx = g_new0 (UnsolicitedRegistrationEventsContext, 1);
+    ctx = g_slice_new0 (UnsolicitedRegistrationEventsContext);
     ctx->enable = enable;
     ctx->run_cs = cs_supported;
     ctx->run_ps = ps_supported;
     ctx->run_eps = eps_supported;
+    ctx->primary = mm_base_modem_get_port_primary (MM_BASE_MODEM (self));
+    ctx->secondary = mm_base_modem_get_port_secondary (MM_BASE_MODEM (self));
 
     task = g_task_new (self, NULL, callback, user_data);
-    g_task_set_task_data (task,
-                          ctx,
-                          (GDestroyNotify)unsolicited_registration_events_context_free);
+    g_task_set_task_data (task, ctx, (GDestroyNotify)unsolicited_registration_events_context_free);
     return task;
 }
 
 static gboolean
-modem_3gpp_enable_disable_unsolicited_registration_events_finish (MMIfaceModem3gpp *self,
-                                                                  GAsyncResult *res,
-                                                                  GError **error)
+modem_3gpp_enable_disable_unsolicited_registration_events_finish (MMIfaceModem3gpp  *self,
+                                                                  GAsyncResult      *res,
+                                                                  GError           **error)
 {
     return g_task_propagate_boolean (G_TASK (res), error);
 }
@@ -5589,13 +5620,12 @@ static void unsolicited_registration_events_context_step (GTask *task);
 
 static void
 unsolicited_registration_events_sequence_ready (MMBroadbandModem *self,
-                                                GAsyncResult *res,
-                                                GTask *task)
+                                                GAsyncResult     *res,
+                                                GTask            *task)
 {
     UnsolicitedRegistrationEventsContext *ctx;
-    GError *error = NULL;
-    GVariant *command;
-    MMPortSerialAt *secondary;
+    GError                               *error = NULL;
+    GVariant                             *command;
 
     ctx = g_task_get_task_data (task);
 
@@ -5625,18 +5655,12 @@ unsolicited_registration_events_sequence_ready (MMBroadbandModem *self,
                 g_error_free (error);
         } else {
             /* If successful in secondary port, cleanup primary error if any */
-            if (ctx->running_cs && ctx->cs_error) {
-                g_error_free (ctx->cs_error);
-                ctx->cs_error = NULL;
-            }
-            else if (ctx->running_ps && ctx->ps_error) {
-                g_error_free (ctx->ps_error);
-                ctx->ps_error = NULL;
-            }
-            else if (ctx->running_eps && ctx->eps_error) {
-                g_error_free (ctx->eps_error);
-                ctx->eps_error = NULL;
-            }
+            if (ctx->running_cs && ctx->cs_error)
+                g_clear_error (&ctx->cs_error);
+            else if (ctx->running_ps && ctx->ps_error)
+                g_clear_error (&ctx->ps_error);
+            else if (ctx->running_eps && ctx->eps_error)
+                g_clear_error (&ctx->eps_error);
         }
 
         /* Done with primary and secondary, keep on */
@@ -5664,8 +5688,7 @@ unsolicited_registration_events_sequence_ready (MMBroadbandModem *self,
         /* Even if primary failed, go on and try to enable in secondary port */
     }
 
-    secondary = mm_base_modem_peek_port_secondary (MM_BASE_MODEM (self));
-    if (secondary) {
+    if (ctx->secondary) {
         const MMBaseModemAtCommand *registration_sequence = NULL;
 
         ctx->secondary_done = TRUE;
@@ -5674,7 +5697,7 @@ unsolicited_registration_events_sequence_ready (MMBroadbandModem *self,
         if (command) {
             mm_base_modem_at_command_full (
                 MM_BASE_MODEM (self),
-                secondary,
+                ctx->secondary,
                 g_variant_get_string (command, NULL),
                 3,
                 FALSE,
@@ -5695,7 +5718,7 @@ unsolicited_registration_events_sequence_ready (MMBroadbandModem *self,
             registration_sequence = ctx->enable ? eps_registration_sequence : eps_unregistration_sequence;
         mm_base_modem_at_sequence_full (
             MM_BASE_MODEM (self),
-            secondary,
+            ctx->secondary,
             registration_sequence,
             NULL,  /* response processor context */
             NULL,  /* response processor context free */
@@ -5712,9 +5735,8 @@ unsolicited_registration_events_sequence_ready (MMBroadbandModem *self,
 static void
 unsolicited_registration_events_context_step (GTask *task)
 {
-    MMBroadbandModem *self;
+    MMBroadbandModem                     *self;
     UnsolicitedRegistrationEventsContext *ctx;
-    GError *error = NULL;
 
     self = g_task_get_source_object (task);
     ctx = g_task_get_task_data (task);
@@ -5729,7 +5751,7 @@ unsolicited_registration_events_context_step (GTask *task)
         ctx->run_cs = FALSE;
         mm_base_modem_at_sequence_full (
             MM_BASE_MODEM (self),
-            mm_base_modem_peek_port_primary (MM_BASE_MODEM (self)),
+            ctx->primary,
             ctx->enable ? cs_registration_sequence : cs_unregistration_sequence,
             NULL,  /* response processor context */
             NULL,  /* response processor context free */
@@ -5744,7 +5766,7 @@ unsolicited_registration_events_context_step (GTask *task)
         ctx->run_ps = FALSE;
         mm_base_modem_at_sequence_full (
             MM_BASE_MODEM (self),
-            mm_base_modem_peek_port_primary (MM_BASE_MODEM (self)),
+            ctx->primary,
             ctx->enable ? ps_registration_sequence : ps_unregistration_sequence,
             NULL,  /* response processor context */
             NULL,  /* response processor context free */
@@ -5759,7 +5781,7 @@ unsolicited_registration_events_context_step (GTask *task)
         ctx->run_eps = FALSE;
         mm_base_modem_at_sequence_full (
             MM_BASE_MODEM (self),
-            mm_base_modem_peek_port_primary (MM_BASE_MODEM (self)),
+            ctx->primary,
             ctx->enable ? eps_registration_sequence : eps_unregistration_sequence,
             NULL,  /* response processor context */
             NULL,  /* response processor context free */
@@ -5772,31 +5794,24 @@ unsolicited_registration_events_context_step (GTask *task)
     /* All done!
      * If we have any error reported, we'll propagate it. EPS errors take
      * precedence over PS errors and PS errors take precedence over CS errors. */
-    if (ctx->eps_error) {
-        g_propagate_error (&error, ctx->eps_error);
-        ctx->eps_error = NULL;
-    } else if (ctx->ps_error) {
-        g_propagate_error (&error, ctx->ps_error);
-        ctx->ps_error = NULL;
-    } else if (ctx->cs_error) {
-        g_propagate_error (&error, ctx->cs_error);
-        ctx->cs_error = NULL;
-    }
-
-    if (error)
-        g_task_return_error (task, error);
+    if (ctx->eps_error)
+        g_task_return_error (task, g_steal_pointer (&ctx->eps_error));
+    else if (ctx->ps_error)
+        g_task_return_error (task, g_steal_pointer (&ctx->ps_error));
+    else if (ctx->cs_error)
+        g_task_return_error (task, g_steal_pointer (&ctx->cs_error));
     else
         g_task_return_boolean (task, TRUE);
     g_object_unref (task);
 }
 
 static void
-modem_3gpp_disable_unsolicited_registration_events (MMIfaceModem3gpp *self,
-                                                    gboolean cs_supported,
-                                                    gboolean ps_supported,
-                                                    gboolean eps_supported,
-                                                    GAsyncReadyCallback callback,
-                                                    gpointer user_data)
+modem_3gpp_disable_unsolicited_registration_events (MMIfaceModem3gpp    *self,
+                                                    gboolean             cs_supported,
+                                                    gboolean             ps_supported,
+                                                    gboolean             eps_supported,
+                                                    GAsyncReadyCallback  callback,
+                                                    gpointer             user_data)
 {
     unsolicited_registration_events_context_step (
         unsolicited_registration_events_task_new (MM_BROADBAND_MODEM (self),
@@ -5809,12 +5824,12 @@ modem_3gpp_disable_unsolicited_registration_events (MMIfaceModem3gpp *self,
 }
 
 static void
-modem_3gpp_enable_unsolicited_registration_events (MMIfaceModem3gpp *self,
-                                                   gboolean cs_supported,
-                                                   gboolean ps_supported,
-                                                   gboolean eps_supported,
-                                                   GAsyncReadyCallback callback,
-                                                   gpointer user_data)
+modem_3gpp_enable_unsolicited_registration_events (MMIfaceModem3gpp    *self,
+                                                   gboolean             cs_supported,
+                                                   gboolean             ps_supported,
+                                                   gboolean             eps_supported,
+                                                   GAsyncReadyCallback  callback,
+                                                   gpointer             user_data)
 {
     unsolicited_registration_events_context_step (
         unsolicited_registration_events_task_new (MM_BROADBAND_MODEM (self),
@@ -9557,7 +9572,6 @@ typedef struct {
 } DetailedRegistrationStateResults;
 
 typedef struct {
-    MMPortSerialAt *port;
     MMModemCdmaRegistrationState cdma1x_state;
     MMModemCdmaRegistrationState evdo_state;
 } DetailedRegistrationStateContext;
@@ -9572,13 +9586,6 @@ detailed_registration_state_result_new (DetailedRegistrationStateContext *ctx)
     results->detailed_evdo_state = ctx->evdo_state;
 
     return results;
-}
-
-static void
-detailed_registration_state_context_free (DetailedRegistrationStateContext *ctx)
-{
-    g_object_unref (ctx->port);
-    g_free (ctx);
 }
 
 static gboolean
@@ -9721,32 +9728,16 @@ modem_cdma_get_detailed_registration_state (MMIfaceModemCdma *self,
                                             GAsyncReadyCallback callback,
                                             gpointer user_data)
 {
-    MMPortSerialAt *port;
-    GError *error = NULL;
     DetailedRegistrationStateContext *ctx;
     GTask *task;
 
-    /* The default implementation to get detailed registration state
-     * requires the use of an AT port; so if we cannot get any, just
-     * return the error */
-    port = mm_base_modem_peek_best_at_port (MM_BASE_MODEM (self), &error);
-    if (!port) {
-        g_task_report_error (self,
-                             callback,
-                             user_data,
-                             modem_cdma_get_detailed_registration_state,
-                             error);
-        return;
-    }
-
     /* Setup context */
     ctx = g_new0 (DetailedRegistrationStateContext, 1);
-    ctx->port = g_object_ref (port);
     ctx->cdma1x_state = cdma1x_state;
     ctx->evdo_state = evdo_state;
 
     task = g_task_new (self, NULL, callback, user_data);
-    g_task_set_task_data (task, ctx, (GDestroyNotify)detailed_registration_state_context_free);
+    g_task_set_task_data (task, ctx, g_free);
 
     /* NOTE: If we get this generic implementation of getting detailed
      * registration state called, we DO know that we have Sprint commands
@@ -11040,26 +11031,28 @@ disabling_stopped (MMBroadbandModem *self,
 /*****************************************************************************/
 /* Initializing the modem (during first enabling) */
 
-static gboolean
-enabling_modem_init_finish (MMBroadbandModem *self,
-                            GAsyncResult *res,
-                            GError **error)
-{
-    return !!mm_base_modem_at_command_full_finish (MM_BASE_MODEM (self), res, error);
-}
-
 static void
-enabling_modem_init (MMBroadbandModem *self,
-                     GAsyncReadyCallback callback,
-                     gpointer user_data)
+enabling_modem_init (MMBroadbandModem    *self,
+                     GAsyncReadyCallback  callback,
+                     gpointer             user_data)
 {
+    MMPortSerialAt *primary;
+
+    primary = mm_base_modem_peek_port_primary (MM_BASE_MODEM (self));
+    if (!primary) {
+        g_task_report_new_error (self, callback, user_data, enabling_modem_init,
+                                 MM_CORE_ERROR, MM_CORE_ERROR_FAILED,
+                                 "Failed to run init command: primary port missing");
+        return;
+    }
+
     /* Init command. ITU rec v.250 (6.1.1) says:
      *   The DTE should not include additional commands on the same command line
      *   after the Z command because such commands may be ignored.
      * So run ATZ alone.
      */
     mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                   mm_base_modem_peek_port_primary (MM_BASE_MODEM (self)),
+                                   primary,
                                    "Z",
                                    6,
                                    FALSE,
@@ -11067,6 +11060,17 @@ enabling_modem_init (MMBroadbandModem *self,
                                    NULL, /* cancellable */
                                    callback,
                                    user_data);
+}
+
+static gboolean
+enabling_modem_init_finish (MMBroadbandModem  *self,
+                            GAsyncResult      *res,
+                            GError           **error)
+{
+    if (g_async_result_is_tagged (res, enabling_modem_init))
+        return g_task_propagate_boolean (G_TASK (res), error);
+
+    return !!mm_base_modem_at_command_full_finish (MM_BASE_MODEM (self), res, error);
 }
 
 /*****************************************************************************/

@@ -1799,6 +1799,11 @@ get_cell_info_ready (QmiClientNas *client,
     GArray* cell_array;
     GArray* frequency_array;
 
+    guint8 bsic;
+    guint16 lac;
+    guint32 timing_advance;
+    guint16 rxlev;
+
     guint16 lte_tac;
     guint16 lte_scell_id;
     guint32 lte_timing_advance;
@@ -1825,6 +1830,72 @@ get_cell_info_ready (QmiClientNas *client,
         return;
     }
 
+    if (qmi_message_nas_get_cell_location_info_output_get_geran_info_v2 (
+            output,
+            &cell_id,
+            &operator,
+            &lac,
+            &arfcn,
+            &bsic,
+            &timing_advance,
+            &rxlev, /* rx-level */
+            &cell_array,
+            NULL /* error */)) {
+        MMCellInfoGsm *gsm_info;
+        guint i;
+
+        /* serving cell */
+        {
+            g_autofree gchar *operator_id = NULL;
+            g_autofree gchar *base_station_id = NULL;
+            g_autofree gchar *ci = NULL;
+            g_autofree gchar *lac_str = NULL;
+
+            gsm_info = MM_CELL_INFO_GSM (mm_cell_info_gsm_new_from_dictionary (NULL));
+            operator_id = str_from_bcd_plmn (operator);
+            base_station_id = g_strdup_printf ("%X", bsic);
+            ci = g_strdup_printf ("%X", cell_id);
+            lac_str = g_strdup_printf ("%X", lac);
+
+            mm_cell_info_set_serving (MM_CELL_INFO (gsm_info), TRUE);
+            mm_cell_info_gsm_set_operator_id (gsm_info, operator_id);
+            mm_cell_info_gsm_set_lac (gsm_info, lac_str);
+            mm_cell_info_gsm_set_base_station_id (gsm_info, base_station_id);
+            mm_cell_info_gsm_set_ci (gsm_info, ci);
+            mm_cell_info_gsm_set_arfcn (gsm_info, arfcn);
+            mm_cell_info_gsm_set_timing_advance (gsm_info, timing_advance);
+            mm_cell_info_gsm_set_rx_level (gsm_info, rxlev);
+
+            list = g_list_append (list, g_steal_pointer (&gsm_info));
+        }
+
+        for (i = 0; i < cell_array->len; i++) {
+            QmiMessageNasGetCellLocationInfoOutputGeranInfoV2CellElement *element;
+            g_autofree gchar *operator_id = NULL;
+            g_autofree gchar *base_station_id = NULL;
+            g_autofree gchar *ci = NULL;
+            g_autofree gchar *lac_str = NULL;
+
+            gsm_info = MM_CELL_INFO_GSM (mm_cell_info_gsm_new_from_dictionary (NULL));
+            element = &g_array_index (cell_array, QmiMessageNasGetCellLocationInfoOutputGeranInfoV2CellElement, i);
+
+            operator_id = str_from_bcd_plmn (element->plmn);
+            base_station_id = g_strdup_printf ("%X", element->base_station_identity_code);
+            ci = g_strdup_printf ("%X", element->cell_id);
+            lac_str = g_strdup_printf ("%X", element->lac);
+
+            mm_cell_info_gsm_set_operator_id (gsm_info, operator_id);
+            mm_cell_info_gsm_set_lac (gsm_info, lac_str);
+            mm_cell_info_gsm_set_base_station_id (gsm_info, base_station_id);
+            mm_cell_info_gsm_set_ci (gsm_info, ci);
+            mm_cell_info_gsm_set_arfcn (gsm_info, element->geran_absolute_rf_channel_number);
+            mm_cell_info_gsm_set_timing_advance (gsm_info, timing_advance);
+            mm_cell_info_gsm_set_rx_level (gsm_info, element->rx_level);
+
+            list = g_list_append (list, g_steal_pointer (&gsm_info));
+        }
+    }
+
     if (qmi_message_nas_get_cell_location_info_output_get_intrafrequency_lte_info_v2 (
             output,
             NULL /* ue in idle */,
@@ -1838,7 +1909,7 @@ get_cell_info_ready (QmiClientNas *client,
             NULL /* scell low thres */,
             NULL /* s intra search thres */,
             &cell_array,
-            &error)) {
+            NULL)) {
         g_autofree gchar *operator_id = NULL;
         g_autofree gchar *tac = NULL;
         g_autofree gchar *ci = NULL;
@@ -1924,7 +1995,7 @@ get_cell_info_ready (QmiClientNas *client,
                                                                                  &nr5g_rsrq,
                                                                                  &nr5g_rsrp,
                                                                                  &nr5g_snr,
-                                                                                 &error)) {
+                                                                                 NULL)) {
         MMCellInfoNr5g   *nr5g_info;
         g_autofree gchar *operator_id = NULL;
         g_autofree gchar *tac = NULL;
@@ -1951,7 +2022,7 @@ get_cell_info_ready (QmiClientNas *client,
         mm_cell_info_nr5g_set_rsrp (nr5g_info, (0.1) * ((gdouble)nr5g_rsrp));
         mm_cell_info_nr5g_set_sinr (nr5g_info, (0.1) * ((gdouble)nr5g_snr));
 
-        if (qmi_message_nas_get_cell_location_info_output_get_nr5g_arfcn (output, &nr5g_arfcn, &error)) {
+        if (qmi_message_nas_get_cell_location_info_output_get_nr5g_arfcn (output, &nr5g_arfcn, NULL)) {
             mm_cell_info_nr5g_set_nrarfcn (nr5g_info, nr5g_arfcn);
         }
 
@@ -3514,12 +3585,6 @@ modem_3gpp_load_operator_name (MMIfaceModem3gpp    *_self,
 
     task = g_task_new (self, NULL, callback, user_data);
 
-    if (self->priv->current_operator_description) {
-        g_task_return_pointer (task, g_strdup (self->priv->current_operator_description), g_free);
-        g_object_unref (task);
-        return;
-    }
-
     /* Check if operator id is set */
     if (!self->priv->current_operator_id) {
         g_task_return_new_error (task, MM_CORE_ERROR, MM_CORE_ERROR_FAILED,
@@ -3897,6 +3962,8 @@ common_process_system_info_3gpp (MMBroadbandModemQmi              *self,
     if (operator_id) {
         g_free (self->priv->current_operator_id);
         self->priv->current_operator_id = operator_id;
+        g_free (self->priv->current_operator_description);
+        self->priv->current_operator_description = NULL;
     }
 
     /* Update registration states */
@@ -3909,6 +3976,9 @@ common_process_system_info_3gpp (MMBroadbandModemQmi              *self,
     /* Update act and location info */
     mm_iface_modem_3gpp_update_access_technologies (MM_IFACE_MODEM_3GPP (self), act);
     mm_iface_modem_3gpp_update_location (MM_IFACE_MODEM_3GPP (self), lac, tac, cid);
+
+    /* Update operator name and operator description */
+    mm_iface_modem_3gpp_reload_current_registration_info (MM_IFACE_MODEM_3GPP (self), NULL, NULL);
 }
 
 static gboolean
