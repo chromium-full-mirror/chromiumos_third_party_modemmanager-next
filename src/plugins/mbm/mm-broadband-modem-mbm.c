@@ -47,13 +47,13 @@
 /* sets the interval in seconds on how often the card emits the NMEA sentences */
 #define MBM_GPS_NMEA_INTERVAL   "5"
 
-static void iface_modem_init (MMIfaceModem *iface);
-static void iface_modem_3gpp_init (MMIfaceModem3gpp *iface);
-static void iface_modem_location_init (MMIfaceModemLocation *iface);
+static void iface_modem_init          (MMIfaceModemInterface         *iface);
+static void iface_modem_3gpp_init     (MMIfaceModem3gppInterface     *iface);
+static void iface_modem_location_init (MMIfaceModemLocationInterface *iface);
 
-static MMIfaceModem *iface_modem_parent;
-static MMIfaceModem3gpp *iface_modem_3gpp_parent;
-static MMIfaceModemLocation *iface_modem_location_parent;
+static MMIfaceModemInterface         *iface_modem_parent;
+static MMIfaceModem3gppInterface     *iface_modem_3gpp_parent;
+static MMIfaceModemLocationInterface *iface_modem_location_parent;
 
 G_DEFINE_TYPE_EXTENDED (MMBroadbandModemMbm, mm_broadband_modem_mbm, MM_TYPE_BROADBAND_MODEM, 0,
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM, iface_modem_init)
@@ -428,7 +428,7 @@ run_enabling_init_sequence (GTask *task)
     }
 
     mm_base_modem_at_sequence_full (self,
-                                    primary,
+                                    MM_IFACE_PORT_AT (primary),
                                     enabling_modem_init_sequence,
                                     NULL,  /* response_processor_context */
                                     NULL,  /* response_processor_context_free */
@@ -981,7 +981,7 @@ parent_enable_unsolicited_events_ready (MMIfaceModem3gpp *self,
     /* Our own enable now */
     mm_base_modem_at_sequence_full (
         MM_BASE_MODEM (self),
-        primary,
+        MM_IFACE_PORT_AT (primary),
         unsolicited_enable_sequence,
         NULL,  /* response_processor_context */
         NULL,  /* response_processor_context_free */
@@ -1076,7 +1076,7 @@ modem_3gpp_disable_unsolicited_events (MMIfaceModem3gpp *self,
     /* Our own disable first */
     mm_base_modem_at_sequence_full (
         MM_BASE_MODEM (self),
-        primary,
+        MM_IFACE_PORT_AT (primary),
         unsolicited_disable_sequence,
         NULL, /* response_processor_context */
         NULL, /* response_processor_context_free */
@@ -1538,7 +1538,7 @@ finalize (GObject *object)
 }
 
 static void
-iface_modem_init (MMIfaceModem *iface)
+iface_modem_init (MMIfaceModemInterface *iface)
 {
     iface_modem_parent = g_type_interface_peek_parent (iface);
 
@@ -1569,7 +1569,7 @@ iface_modem_init (MMIfaceModem *iface)
 }
 
 static void
-iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
+iface_modem_3gpp_init (MMIfaceModem3gppInterface *iface)
 {
     iface_modem_3gpp_parent = g_type_interface_peek_parent (iface);
 
@@ -1585,7 +1585,7 @@ iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
 }
 
 static void
-iface_modem_location_init (MMIfaceModemLocation *iface)
+iface_modem_location_init (MMIfaceModemLocationInterface *iface)
 {
     iface_modem_location_parent = g_type_interface_peek_parent (iface);
 

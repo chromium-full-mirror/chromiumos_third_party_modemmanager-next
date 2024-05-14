@@ -50,20 +50,20 @@
 #include "mm-bearer-list.h"
 #include "mm-sim-huawei.h"
 
-static void iface_modem_init (MMIfaceModem *iface);
-static void iface_modem_3gpp_init (MMIfaceModem3gpp *iface);
-static void iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssd *iface);
-static void iface_modem_location_init (MMIfaceModemLocation *iface);
-static void iface_modem_cdma_init (MMIfaceModemCdma *iface);
-static void iface_modem_time_init (MMIfaceModemTime *iface);
-static void iface_modem_voice_init (MMIfaceModemVoice *iface);
-static void iface_modem_signal_init (MMIfaceModemSignal *iface);
+static void iface_modem_init           (MMIfaceModemInterface         *iface);
+static void iface_modem_3gpp_init      (MMIfaceModem3gppInterface     *iface);
+static void iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssdInterface *iface);
+static void iface_modem_location_init  (MMIfaceModemLocationInterface *iface);
+static void iface_modem_cdma_init      (MMIfaceModemCdmaInterface     *iface);
+static void iface_modem_time_init      (MMIfaceModemTimeInterface     *iface);
+static void iface_modem_voice_init     (MMIfaceModemVoiceInterface    *iface);
+static void iface_modem_signal_init    (MMIfaceModemSignalInterface   *iface);
 
-static MMIfaceModem *iface_modem_parent;
-static MMIfaceModem3gpp *iface_modem_3gpp_parent;
-static MMIfaceModemLocation *iface_modem_location_parent;
-static MMIfaceModemCdma *iface_modem_cdma_parent;
-static MMIfaceModemVoice *iface_modem_voice_parent;
+static MMIfaceModemInterface         *iface_modem_parent;
+static MMIfaceModem3gppInterface     *iface_modem_3gpp_parent;
+static MMIfaceModemLocationInterface *iface_modem_location_parent;
+static MMIfaceModemCdmaInterface     *iface_modem_cdma_parent;
+static MMIfaceModemVoiceInterface    *iface_modem_voice_parent;
 
 G_DEFINE_TYPE_EXTENDED (MMBroadbandModemHuawei, mm_broadband_modem_huawei, MM_TYPE_BROADBAND_MODEM, 0,
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM, iface_modem_init)
@@ -865,7 +865,7 @@ huawei_to_bands_array (BandTable *band_table,
         g_set_error (error,
                      MM_CORE_ERROR,
                      MM_CORE_ERROR_FAILED,
-                     "Couldn't build bands array from '%lu'",
+                     "Couldn't build bands array from '%" G_GUINT64_FORMAT "'",
                      huawei);
         return FALSE;
     }
@@ -1720,7 +1720,7 @@ syscfgex_set_current_modes (MMBroadbandModemHuawei *self,
         return FALSE;
     }
 
-    command = g_strdup_printf ("^SYSCFGEX=\"%s\",%x,2,4,%lx,,",
+    command = g_strdup_printf ("^SYSCFGEX=\"%s\",%x,2,4,%" G_GINT64_MODIFIER "x,,",
                                found->mode_str,
                                MM_HUAWEI_SYSCFG_BAND_ANY,
                                MM_HUAWEI_SYSCFGEX_BAND_ANY_LTE);
@@ -2382,7 +2382,7 @@ parent_enable_unsolicited_events_ready (MMIfaceModem3gpp *self,
 
     mm_base_modem_at_sequence_full (
         MM_BASE_MODEM (self),
-        primary,
+        MM_IFACE_PORT_AT (primary),
         unsolicited_enable_sequence,
         NULL, /* response_processor_context */
         NULL, /* response_processor_context_free */
@@ -2474,7 +2474,7 @@ modem_3gpp_disable_unsolicited_events (MMIfaceModem3gpp *self,
     /* Our own disable first */
     mm_base_modem_at_command_full (
         MM_BASE_MODEM (self),
-        primary,
+        MM_IFACE_PORT_AT (primary),
         "^CURC=0",
         5,
         FALSE, /* allow_cached */
@@ -3748,7 +3748,7 @@ parent_voice_enable_unsolicited_events_ready (MMIfaceModemVoice *self,
 
     mm_base_modem_at_sequence_full (
         MM_BASE_MODEM (self),
-        primary,
+        MM_IFACE_PORT_AT (primary),
         unsolicited_voice_enable_sequence,
         NULL, /* response_processor_context */
         NULL, /* response_processor_context_free */
@@ -3829,7 +3829,7 @@ parent_voice_disable_unsolicited_events_ready (MMIfaceModemVoice *self,
 
     mm_base_modem_at_sequence_full (
         MM_BASE_MODEM (self),
-        primary,
+        MM_IFACE_PORT_AT (primary),
         unsolicited_voice_disable_sequence,
         NULL, /* response_processor_context */
         NULL, /* response_processor_context_free */
@@ -4983,7 +4983,7 @@ finalize (GObject *object)
 }
 
 static void
-iface_modem_init (MMIfaceModem *iface)
+iface_modem_init (MMIfaceModemInterface *iface)
 {
     iface_modem_parent = g_type_interface_peek_parent (iface);
 
@@ -5024,7 +5024,7 @@ iface_modem_init (MMIfaceModem *iface)
 }
 
 static void
-iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
+iface_modem_3gpp_init (MMIfaceModem3gppInterface *iface)
 {
     iface_modem_3gpp_parent = g_type_interface_peek_parent (iface);
 
@@ -5039,14 +5039,14 @@ iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
 }
 
 static void
-iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssd *iface)
+iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssdInterface *iface)
 {
     iface->encode = encode;
     iface->decode = decode;
 }
 
 static void
-iface_modem_cdma_init (MMIfaceModemCdma *iface)
+iface_modem_cdma_init (MMIfaceModemCdmaInterface *iface)
 {
     iface_modem_cdma_parent = g_type_interface_peek_parent (iface);
 
@@ -5061,7 +5061,7 @@ iface_modem_cdma_init (MMIfaceModemCdma *iface)
 }
 
 static void
-iface_modem_location_init (MMIfaceModemLocation *iface)
+iface_modem_location_init (MMIfaceModemLocationInterface *iface)
 {
     iface_modem_location_parent = g_type_interface_peek_parent (iface);
 
@@ -5074,7 +5074,7 @@ iface_modem_location_init (MMIfaceModemLocation *iface)
 }
 
 static void
-iface_modem_time_init (MMIfaceModemTime *iface)
+iface_modem_time_init (MMIfaceModemTimeInterface *iface)
 {
     iface->check_support = modem_time_check_support;
     iface->check_support_finish = modem_time_check_support_finish;
@@ -5085,7 +5085,7 @@ iface_modem_time_init (MMIfaceModemTime *iface)
 }
 
 static void
-iface_modem_voice_init (MMIfaceModemVoice *iface)
+iface_modem_voice_init (MMIfaceModemVoiceInterface *iface)
 {
     iface_modem_voice_parent = g_type_interface_peek_parent (iface);
 
@@ -5108,7 +5108,7 @@ iface_modem_voice_init (MMIfaceModemVoice *iface)
 }
 
 static void
-iface_modem_signal_init (MMIfaceModemSignal *iface)
+iface_modem_signal_init (MMIfaceModemSignalInterface *iface)
 {
     iface->check_support = signal_check_support;
     iface->check_support_finish = signal_check_support_finish;

@@ -34,10 +34,10 @@
 #include "mm-modem-helpers-ublox.h"
 #include "mm-ublox-enums-types.h"
 
-static void iface_modem_init (MMIfaceModem *iface);
-static void iface_modem_voice_init (MMIfaceModemVoice *iface);
+static void iface_modem_init       (MMIfaceModemInterface      *iface);
+static void iface_modem_voice_init (MMIfaceModemVoiceInterface *iface);
 
-static MMIfaceModemVoice *iface_modem_voice_parent;
+static MMIfaceModemVoiceInterface *iface_modem_voice_parent;
 
 G_DEFINE_TYPE_EXTENDED (MMBroadbandModemUblox, mm_broadband_modem_ublox, MM_TYPE_BROADBAND_MODEM, 0,
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM, iface_modem_init)
@@ -973,7 +973,7 @@ voice_unsolicited_events_context_step (GTask *task)
             mm_obj_dbg (self, "%s extended call status reporting in primary port...",
                         ctx->enable ? "enabling" : "disabling");
             mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                           ctx->primary,
+                                           MM_IFACE_PORT_AT (ctx->primary),
                                            ctx->ucallstat_command,
                                            3,
                                            FALSE,
@@ -991,7 +991,7 @@ voice_unsolicited_events_context_step (GTask *task)
             mm_obj_dbg (self, "%s extended call status reporting in secondary port...",
                         ctx->enable ? "enabling" : "disabling");
             mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                           ctx->secondary,
+                                           MM_IFACE_PORT_AT (ctx->secondary),
                                            ctx->ucallstat_command,
                                            3,
                                            FALSE,
@@ -1009,7 +1009,7 @@ voice_unsolicited_events_context_step (GTask *task)
             mm_obj_dbg (self, "%s DTMF detection and reporting in primary port...",
                         ctx->enable ? "enabling" : "disabling");
             mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                           ctx->primary,
+                                           MM_IFACE_PORT_AT (ctx->primary),
                                            ctx->udtmfd_command,
                                            3,
                                            FALSE,
@@ -1027,7 +1027,7 @@ voice_unsolicited_events_context_step (GTask *task)
             mm_obj_dbg (self, "%s DTMF detection and reporting in secondary port...",
                         ctx->enable ? "enabling" : "disabling");
             mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                           ctx->secondary,
+                                           MM_IFACE_PORT_AT (ctx->secondary),
                                            ctx->udtmfd_command,
                                            3,
                                            FALSE,
@@ -2010,7 +2010,7 @@ mm_broadband_modem_ublox_init (MMBroadbandModemUblox *self)
 }
 
 static void
-iface_modem_init (MMIfaceModem *iface)
+iface_modem_init (MMIfaceModemInterface *iface)
 {
     iface->create_sim = modem_create_sim;
     iface->create_sim_finish = modem_create_sim_finish;
@@ -2046,7 +2046,7 @@ iface_modem_init (MMIfaceModem *iface)
 }
 
 static void
-iface_modem_voice_init (MMIfaceModemVoice *iface)
+iface_modem_voice_init (MMIfaceModemVoiceInterface *iface)
 {
     iface_modem_voice_parent = g_type_interface_peek_parent (iface);
 

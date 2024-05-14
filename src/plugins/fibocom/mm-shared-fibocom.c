@@ -30,7 +30,10 @@
 #include "mm-modem-helpers-mbim.h"
 #include "mm-port-mbim.h"
 #include "mm-shared-fibocom.h"
+#include "mm-port-mbim-fibocom.h"
 #include "mm-base-modem-at.h"
+
+G_DEFINE_INTERFACE (MMSharedFibocom, mm_shared_fibocom, MM_TYPE_IFACE_MODEM)
 
 /*****************************************************************************/
 /* Private data context */
@@ -39,10 +42,10 @@
 static GQuark private_quark;
 
 typedef struct {
-    /* Broadband modem class support */
-    MMBroadbandModemClass *broadband_modem_class_parent;
+    /* Parent class */
+    MMBaseModemClass *class_parent;
     /* 3GPP interface support */
-    MMIfaceModem3gpp *iface_modem_3gpp_parent;
+    MMIfaceModem3gppInterface *iface_modem_3gpp_parent;
     gboolean custom_l850_att_310280_attach_required;
     /* URCs to ignore */
     GRegex *sim_ready_regex;
@@ -70,19 +73,53 @@ get_private (MMSharedFibocom *self)
         priv->sim_ready_regex = g_regex_new ("\\r\\n\\+SIM READY\\r\\n",
                                              G_REGEX_RAW | G_REGEX_OPTIMIZE, 0, NULL);
 
-        /* Setup parent class' MMBroadbandModemClass */
-        g_assert (MM_SHARED_FIBOCOM_GET_INTERFACE (self)->peek_parent_broadband_modem_class);
-        priv->broadband_modem_class_parent = MM_SHARED_FIBOCOM_GET_INTERFACE (self)->peek_parent_broadband_modem_class (self);
+        /* Setup parent class */
+        g_assert (MM_SHARED_FIBOCOM_GET_IFACE (self)->peek_parent_class);
+        priv->class_parent = MM_SHARED_FIBOCOM_GET_IFACE (self)->peek_parent_class (self);
 
         /* Setup parent class' MMIfaceModem3gpp */
-        g_assert (MM_SHARED_FIBOCOM_GET_INTERFACE (self)->peek_parent_3gpp_interface);
-        priv->iface_modem_3gpp_parent = MM_SHARED_FIBOCOM_GET_INTERFACE (self)->peek_parent_3gpp_interface (self);
+        g_assert (MM_SHARED_FIBOCOM_GET_IFACE (self)->peek_parent_3gpp_interface);
+        priv->iface_modem_3gpp_parent = MM_SHARED_FIBOCOM_GET_IFACE (self)->peek_parent_3gpp_interface (self);
         priv->custom_l850_att_310280_attach_required = TRUE;
 
         g_object_set_qdata_full (G_OBJECT (self), private_quark, priv, (GDestroyNotify)private_free);
     }
 
     return priv;
+}
+
+/*****************************************************************************/
+
+MMPort *
+mm_shared_fibocom_create_usbmisc_port (MMBaseModem *self,
+                                       const gchar *name,
+                                       MMPortType   ptype)
+{
+    Private *priv;
+
+    priv = get_private (MM_SHARED_FIBOCOM (self));
+    if (ptype == MM_PORT_TYPE_MBIM) {
+        mm_obj_dbg (self, "creating fibocom-specific MBIM port...");
+        return MM_PORT (mm_port_mbim_fibocom_new (name, MM_PORT_SUBSYS_USBMISC));
+    }
+
+    return priv->class_parent->create_usbmisc_port (self, name, ptype);
+}
+
+MMPort *
+mm_shared_fibocom_create_wwan_port (MMBaseModem *self,
+                                    const gchar *name,
+                                    MMPortType   ptype)
+{
+    Private *priv;
+
+    priv = get_private (MM_SHARED_FIBOCOM (self));
+    if (ptype == MM_PORT_TYPE_MBIM) {
+        mm_obj_dbg (self, "creating fibocom-specific MBIM port...");
+        return MM_PORT (mm_port_mbim_fibocom_new (name, MM_PORT_SUBSYS_WWAN));
+    }
+
+    return priv->class_parent->create_wwan_port (self, name, ptype);
 }
 
 /*****************************************************************************/
@@ -97,11 +134,11 @@ mm_shared_fibocom_setup_ports (MMBroadbandModem *self)
     mm_obj_dbg (self, "setting up ports in fibocom modem...");
 
     priv = get_private (MM_SHARED_FIBOCOM (self));
-    g_assert (priv->broadband_modem_class_parent);
-    g_assert (priv->broadband_modem_class_parent->setup_ports);
+    g_assert (priv->class_parent);
+    g_assert (MM_BROADBAND_MODEM_CLASS (priv->class_parent)->setup_ports);
 
     /* Parent setup first always */
-    priv->broadband_modem_class_parent->setup_ports (self);
+    MM_BROADBAND_MODEM_CLASS (priv->class_parent)->setup_ports (self);
 
     ports[0] = mm_base_modem_peek_port_primary   (MM_BASE_MODEM (self));
     ports[1] = mm_base_modem_peek_port_secondary (MM_BASE_MODEM (self));
@@ -681,26 +718,6 @@ mm_shared_fibocom_firmware_load_update_settings (MMIfaceModemFirmware *self,
 /*****************************************************************************/
 
 static void
-shared_fibocom_init (gpointer g_iface)
+mm_shared_fibocom_default_init (MMSharedFibocomInterface *iface)
 {
-}
-
-GType
-mm_shared_fibocom_get_type (void)
-{
-    static GType shared_fibocom_type = 0;
-
-    if (!G_UNLIKELY (shared_fibocom_type)) {
-        static const GTypeInfo info = {
-            sizeof (MMSharedFibocom),  /* class_size */
-            shared_fibocom_init,       /* base_init */
-            NULL,                      /* base_finalize */
-        };
-
-        shared_fibocom_type = g_type_register_static (G_TYPE_INTERFACE, "MMSharedFibocom", &info, 0);
-        g_type_interface_add_prerequisite (shared_fibocom_type, MM_TYPE_IFACE_MODEM);
-        g_type_interface_add_prerequisite (shared_fibocom_type, MM_TYPE_IFACE_MODEM_3GPP);
-    }
-
-    return shared_fibocom_type;
 }

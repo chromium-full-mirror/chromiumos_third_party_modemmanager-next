@@ -840,7 +840,7 @@ sms_get_store_or_send_command (MMBaseSms  *self,
 
 typedef struct {
     MMBaseModem    *modem;
-    MMPortSerialAt *port;
+    MMIfacePortAt  *port;
     MMSmsStorage    storage;
     gboolean        need_unlock;
     gboolean        use_pdu_mode;
@@ -1024,7 +1024,7 @@ sms_store (MMBaseSms           *self,
 {
     SmsStoreContext *ctx;
     GTask           *task;
-    MMPortSerialAt  *port;
+    MMIfacePortAt   *port;
     GError          *error = NULL;
 
     task = g_task_new (self, NULL, callback, user_data);
@@ -1063,13 +1063,13 @@ sms_store (MMBaseSms           *self,
 /* Send the SMS */
 
 typedef struct {
-    MMBaseModem    *modem;
-    MMPortSerialAt *port;
-    gboolean        need_unlock;
-    gboolean        from_storage;
-    gboolean        use_pdu_mode;
-    GList          *current;
-    gchar          *msg_data;
+    MMBaseModem   *modem;
+    MMIfacePortAt *port;
+    gboolean       need_unlock;
+    gboolean       from_storage;
+    gboolean       use_pdu_mode;
+    GList         *current;
+    gchar         *msg_data;
 } SmsSendContext;
 
 static void
@@ -1327,7 +1327,7 @@ sms_send (MMBaseSms           *self,
 {
     SmsSendContext *ctx;
     GTask          *task;
-    MMPortSerialAt *port;
+    MMIfacePortAt  *port;
     GError         *error = NULL;
 
     task = g_task_new (self, NULL, callback, user_data);

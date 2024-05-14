@@ -25,14 +25,14 @@
 #include "mm-log.h"
 #include "mm-shared-fibocom.h"
 
-static void iface_modem_init                      (MMIfaceModem                   *iface);
-static void iface_modem_3gpp_init                 (MMIfaceModem3gpp               *iface);
-static void iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManager *iface);
-static void iface_modem_firmware_init             (MMIfaceModemFirmware           *iface);
-static void shared_fibocom_init                   (MMSharedFibocom                *iface);
+static void iface_modem_init                      (MMIfaceModemInterface                   *iface);
+static void iface_modem_3gpp_init                 (MMIfaceModem3gppInterface               *iface);
+static void iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManagerInterface *iface);
+static void iface_modem_firmware_init             (MMIfaceModemFirmwareInterface           *iface);
+static void shared_fibocom_init                   (MMSharedFibocomInterface                *iface);
 
-static MMIfaceModem3gpp *iface_modem_3gpp_parent;
-static MMIfaceModem3gppProfileManager *iface_modem_3gpp_profile_manager_parent;
+static MMIfaceModem3gppInterface               *iface_modem_3gpp_parent;
+static MMIfaceModem3gppProfileManagerInterface *iface_modem_3gpp_profile_manager_parent;
 
 G_DEFINE_TYPE_EXTENDED (MMBroadbandModemFibocom, mm_broadband_modem_fibocom, MM_TYPE_BROADBAND_MODEM, 0,
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM, iface_modem_init)
@@ -424,7 +424,7 @@ set_initial_eps_bearer_power_up_ready (MMBaseModem  *_self,
 
     ctx = g_task_get_task_data (task);
 
-    if (!MM_IFACE_MODEM_GET_INTERFACE (self)->modem_power_up_finish (MM_IFACE_MODEM (self), res, &error)) {
+    if (!MM_IFACE_MODEM_GET_IFACE (self)->modem_power_up_finish (MM_IFACE_MODEM (self), res, &error)) {
         g_prefix_error (&error, "Couldn't power up modem: ");
         g_task_return_error (task, error);
         g_object_unref (task);
@@ -467,7 +467,7 @@ set_initial_eps_bearer_power_down_ready (MMBaseModem  *self,
 
     ctx = g_task_get_task_data (task);
 
-    if (!MM_IFACE_MODEM_GET_INTERFACE (self)->modem_power_down_finish (MM_IFACE_MODEM (self), res, &error)) {
+    if (!MM_IFACE_MODEM_GET_IFACE (self)->modem_power_down_finish (MM_IFACE_MODEM (self), res, &error)) {
         g_prefix_error (&error, "Couldn't power down modem: ");
         g_task_return_error (task, error);
         g_object_unref (task);
@@ -488,7 +488,7 @@ set_initial_eps_bearer_load_power_state_ready (MMBaseModem  *self,
 
     ctx = g_task_get_task_data (task);
 
-    ctx->power_state = MM_IFACE_MODEM_GET_INTERFACE (self)->load_power_state_finish (MM_IFACE_MODEM (self), res, &error);
+    ctx->power_state = MM_IFACE_MODEM_GET_IFACE (self)->load_power_state_finish (MM_IFACE_MODEM (self), res, &error);
     if (error) {
         g_task_return_error (task, error);
         g_object_unref (task);
@@ -511,9 +511,9 @@ set_initial_eps_step (GTask *task)
     switch (ctx->step) {
     case SET_INITIAL_EPS_BEARER_SETTINGS_STEP_LOAD_POWER_STATE:
         mm_obj_dbg (self, "querying current power state...");
-        g_assert (MM_IFACE_MODEM_GET_INTERFACE (self)->load_power_state);
-        g_assert (MM_IFACE_MODEM_GET_INTERFACE (self)->load_power_state_finish);
-        MM_IFACE_MODEM_GET_INTERFACE (self)->load_power_state (
+        g_assert (MM_IFACE_MODEM_GET_IFACE (self)->load_power_state);
+        g_assert (MM_IFACE_MODEM_GET_IFACE (self)->load_power_state_finish);
+        MM_IFACE_MODEM_GET_IFACE (self)->load_power_state (
             MM_IFACE_MODEM (self),
             (GAsyncReadyCallback) set_initial_eps_bearer_load_power_state_ready,
             task);
@@ -522,9 +522,9 @@ set_initial_eps_step (GTask *task)
     case SET_INITIAL_EPS_BEARER_SETTINGS_STEP_POWER_DOWN:
         if (ctx->power_state == MM_MODEM_POWER_STATE_ON) {
             mm_obj_dbg (self, "powering down before changing initial EPS bearer settings...");
-            g_assert (MM_IFACE_MODEM_GET_INTERFACE (self)->modem_power_down);
-            g_assert (MM_IFACE_MODEM_GET_INTERFACE (self)->modem_power_down_finish);
-            MM_IFACE_MODEM_GET_INTERFACE (self)->modem_power_down (
+            g_assert (MM_IFACE_MODEM_GET_IFACE (self)->modem_power_down);
+            g_assert (MM_IFACE_MODEM_GET_IFACE (self)->modem_power_down_finish);
+            MM_IFACE_MODEM_GET_IFACE (self)->modem_power_down (
                 MM_IFACE_MODEM (self),
                 (GAsyncReadyCallback) set_initial_eps_bearer_power_down_ready,
                 task);
@@ -546,9 +546,9 @@ set_initial_eps_step (GTask *task)
     case SET_INITIAL_EPS_BEARER_SETTINGS_STEP_POWER_UP:
         if (ctx->power_state == MM_MODEM_POWER_STATE_ON) {
             mm_obj_dbg (self, "powering up after changing initial EPS bearer settings...");
-            g_assert (MM_IFACE_MODEM_GET_INTERFACE (self)->modem_power_up);
-            g_assert (MM_IFACE_MODEM_GET_INTERFACE (self)->modem_power_up_finish);
-            MM_IFACE_MODEM_GET_INTERFACE (self)->modem_power_up (
+            g_assert (MM_IFACE_MODEM_GET_IFACE (self)->modem_power_up);
+            g_assert (MM_IFACE_MODEM_GET_IFACE (self)->modem_power_up_finish);
+            MM_IFACE_MODEM_GET_IFACE (self)->modem_power_up (
                 MM_IFACE_MODEM (self),
                 (GAsyncReadyCallback) set_initial_eps_bearer_power_up_ready,
                 task);
@@ -694,7 +694,7 @@ mm_broadband_modem_fibocom_init (MMBroadbandModemFibocom *self)
 }
 
 static void
-iface_modem_init (MMIfaceModem *iface)
+iface_modem_init (MMIfaceModemInterface *iface)
 {
     iface->create_bearer = modem_create_bearer;
     iface->create_bearer_finish = modem_create_bearer_finish;
@@ -707,7 +707,7 @@ iface_modem_init (MMIfaceModem *iface)
 }
 
 static void
-iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
+iface_modem_3gpp_init (MMIfaceModem3gppInterface *iface)
 {
     iface_modem_3gpp_parent = g_type_interface_peek_parent (iface);
 
@@ -720,7 +720,7 @@ iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
 }
 
 static void
-iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManager *iface)
+iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManagerInterface *iface)
 {
     iface_modem_3gpp_profile_manager_parent = g_type_interface_peek_parent (iface);
 
@@ -729,28 +729,28 @@ iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManager *iface)
 }
 
 static void
-iface_modem_firmware_init (MMIfaceModemFirmware *iface)
+iface_modem_firmware_init (MMIfaceModemFirmwareInterface *iface)
 {
     iface->load_update_settings = mm_shared_fibocom_firmware_load_update_settings;
     iface->load_update_settings_finish = mm_shared_fibocom_firmware_load_update_settings_finish;
 }
 
-static MMBroadbandModemClass *
-peek_parent_broadband_modem_class (MMSharedFibocom *self)
+static MMBaseModemClass *
+peek_parent_class (MMSharedFibocom *self)
 {
-    return MM_BROADBAND_MODEM_CLASS (mm_broadband_modem_fibocom_parent_class);
+    return MM_BASE_MODEM_CLASS (mm_broadband_modem_fibocom_parent_class);
 }
 
-static MMIfaceModem3gpp *
+static MMIfaceModem3gppInterface *
 peek_parent_3gpp_interface (MMSharedFibocom *self)
 {
     return iface_modem_3gpp_parent;
 }
 
 static void
-shared_fibocom_init (MMSharedFibocom *iface)
+shared_fibocom_init (MMSharedFibocomInterface *iface)
 {
-    iface->peek_parent_broadband_modem_class = peek_parent_broadband_modem_class;
+    iface->peek_parent_class = peek_parent_class;
     iface->peek_parent_3gpp_interface = peek_parent_3gpp_interface;
 }
 

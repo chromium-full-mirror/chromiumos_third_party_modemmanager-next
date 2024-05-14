@@ -36,13 +36,13 @@
 #include "mm-bearer-list.h"
 #include "mm-shared-option.h"
 
-static void shared_option_init (MMSharedOption *iface);
-static void iface_modem_init (MMIfaceModem *iface);
-static void iface_modem_3gpp_init (MMIfaceModem3gpp *iface);
-static void iface_modem_location_init (MMIfaceModemLocation *iface);
+static void shared_option_init        (MMSharedOptionInterface       *iface);
+static void iface_modem_init          (MMIfaceModemInterface         *iface);
+static void iface_modem_3gpp_init     (MMIfaceModem3gppInterface     *iface);
+static void iface_modem_location_init (MMIfaceModemLocationInterface *iface);
 
-static MMIfaceModem3gpp *iface_modem_3gpp_parent;
-static MMIfaceModemLocation *iface_modem_location_parent;
+static MMIfaceModem3gppInterface     *iface_modem_3gpp_parent;
+static MMIfaceModemLocationInterface *iface_modem_location_parent;
 
 G_DEFINE_TYPE_EXTENDED (MMBroadbandModemHso, mm_broadband_modem_hso, MM_TYPE_BROADBAND_MODEM_OPTION, 0,
                         G_IMPLEMENT_INTERFACE (MM_TYPE_SHARED_OPTION, shared_option_init)
@@ -525,7 +525,7 @@ disable_location_gathering (MMIfaceModemLocation *self,
         }
 
         mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                       gps_control,
+                                       MM_IFACE_PORT_AT (gps_control),
                                        "_OGPS=0",
                                        3,
                                        FALSE,
@@ -639,7 +639,7 @@ parent_enable_location_gathering_ready (MMIfaceModemLocation *_self,
         }
 
         mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                       gps_control,
+                                       MM_IFACE_PORT_AT (gps_control),
                                        "_OGPS=2",
                                        3,
                                        FALSE,
@@ -723,7 +723,7 @@ setup_ports (MMBroadbandModem *self)
          * maybe ModemManager got rebooted and it was left enabled before. We'll make
          * sure that it is disabled when we initialize the modem */
         mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                       gps_control_port,
+                                       MM_IFACE_PORT_AT (gps_control_port),
                                        "_OGPS=0",
                                        3, FALSE, FALSE, NULL, NULL, NULL);
 
@@ -782,12 +782,12 @@ mm_broadband_modem_hso_init (MMBroadbandModemHso *self)
 }
 
 static void
-shared_option_init (MMSharedOption *iface)
+shared_option_init (MMSharedOptionInterface *iface)
 {
 }
 
 static void
-iface_modem_init (MMIfaceModem *iface)
+iface_modem_init (MMIfaceModemInterface *iface)
 {
     iface->create_sim = mm_shared_option_create_sim;
     iface->create_sim_finish = mm_shared_option_create_sim_finish;
@@ -802,7 +802,7 @@ iface_modem_init (MMIfaceModem *iface)
 }
 
 static void
-iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
+iface_modem_3gpp_init (MMIfaceModem3gppInterface *iface)
 {
     iface_modem_3gpp_parent = g_type_interface_peek_parent (iface);
 
@@ -813,7 +813,7 @@ iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
 }
 
 static void
-iface_modem_location_init (MMIfaceModemLocation *iface)
+iface_modem_location_init (MMIfaceModemLocationInterface *iface)
 {
     iface_modem_location_parent = g_type_interface_peek_parent (iface);
 

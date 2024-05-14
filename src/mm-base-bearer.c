@@ -862,16 +862,13 @@ connect_succeeded (MMBaseBearer *self,
                    GTask        *task)
 {
     MMBearerConnectResult *result;
-    const gchar           *data_interface;
 
     result = g_task_get_task_data (task);
-
-    data_interface = mm_port_get_device (mm_bearer_connect_result_peek_data (result));
 
     /* Update bearer and interface status */
     bearer_update_status_connected (
         self,
-        data_interface,
+        mm_port_get_device (mm_bearer_connect_result_peek_data (result)),
         mm_bearer_connect_result_get_multiplexed (result),
         mm_bearer_connect_result_get_profile_id (result),
         mm_bearer_connect_result_peek_ipv4_config (result),

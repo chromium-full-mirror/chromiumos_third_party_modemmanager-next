@@ -31,6 +31,8 @@
 #include "mm-shared-cinterion.h"
 #include "mm-modem-helpers-cinterion.h"
 
+G_DEFINE_INTERFACE (MMSharedCinterion, mm_shared_cinterion, MM_TYPE_IFACE_MODEM)
+
 /*****************************************************************************/
 /* Private data context */
 
@@ -45,20 +47,20 @@ typedef enum {
 
 typedef struct {
     /* modem */
-    MMIfaceModem          *iface_modem_parent;
+    MMIfaceModemInterface *iface_modem_parent;
     /* location */
-    MMIfaceModemLocation  *iface_modem_location_parent;
-    MMModemLocationSource  supported_sources;
-    MMModemLocationSource  enabled_sources;
-    FeatureSupport         sgpss_support;
-    FeatureSupport         sgpsc_support;
+    MMIfaceModemLocationInterface  *iface_modem_location_parent;
+    MMModemLocationSource           supported_sources;
+    MMModemLocationSource           enabled_sources;
+    FeatureSupport                  sgpss_support;
+    FeatureSupport                  sgpsc_support;
     /* voice */
-    MMIfaceModemVoice     *iface_modem_voice_parent;
-    FeatureSupport         slcc_support;
-    GRegex                *slcc_regex;
+    MMIfaceModemVoiceInterface *iface_modem_voice_parent;
+    FeatureSupport              slcc_support;
+    GRegex                     *slcc_regex;
     /* time */
-    MMIfaceModemTime      *iface_modem_time_parent;
-    GRegex                *ctzu_regex;
+    MMIfaceModemTimeInterface *iface_modem_time_parent;
+    GRegex                    *ctzu_regex;
 } Private;
 
 static void
@@ -92,17 +94,17 @@ get_private (MMSharedCinterion *self)
         /* Setup parent class' MMIfaceModem, MMIfaceModemLocation, MMIfaceModemVoice
          * and MMIfaceModemTime */
 
-        g_assert (MM_SHARED_CINTERION_GET_INTERFACE (self)->peek_parent_interface);
-        priv->iface_modem_parent = MM_SHARED_CINTERION_GET_INTERFACE (self)->peek_parent_interface (self);
+        g_assert (MM_SHARED_CINTERION_GET_IFACE (self)->peek_parent_interface);
+        priv->iface_modem_parent = MM_SHARED_CINTERION_GET_IFACE (self)->peek_parent_interface (self);
 
-        g_assert (MM_SHARED_CINTERION_GET_INTERFACE (self)->peek_parent_location_interface);
-        priv->iface_modem_location_parent = MM_SHARED_CINTERION_GET_INTERFACE (self)->peek_parent_location_interface (self);
+        g_assert (MM_SHARED_CINTERION_GET_IFACE (self)->peek_parent_location_interface);
+        priv->iface_modem_location_parent = MM_SHARED_CINTERION_GET_IFACE (self)->peek_parent_location_interface (self);
 
-        g_assert (MM_SHARED_CINTERION_GET_INTERFACE (self)->peek_parent_voice_interface);
-        priv->iface_modem_voice_parent = MM_SHARED_CINTERION_GET_INTERFACE (self)->peek_parent_voice_interface (self);
+        g_assert (MM_SHARED_CINTERION_GET_IFACE (self)->peek_parent_voice_interface);
+        priv->iface_modem_voice_parent = MM_SHARED_CINTERION_GET_IFACE (self)->peek_parent_voice_interface (self);
 
-        g_assert (MM_SHARED_CINTERION_GET_INTERFACE (self)->peek_parent_time_interface);
-        priv->iface_modem_time_parent = MM_SHARED_CINTERION_GET_INTERFACE (self)->peek_parent_time_interface (self);
+        g_assert (MM_SHARED_CINTERION_GET_IFACE (self)->peek_parent_time_interface);
+        priv->iface_modem_time_parent = MM_SHARED_CINTERION_GET_IFACE (self)->peek_parent_time_interface (self);
 
         g_object_set_qdata_full (G_OBJECT (self), private_quark, priv, (GDestroyNotify)private_free);
     }
@@ -988,7 +990,7 @@ run_voice_enable_disable_unsolicited_events (GTask *task)
 
     if (port) {
         mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                       port,
+                                       MM_IFACE_PORT_AT (port),
                                        ctx->slcc_command,
                                        3,
                                        FALSE,
@@ -1574,28 +1576,6 @@ mm_shared_cinterion_time_setup_unsolicited_events (MMIfaceModemTime    *self,
 /*****************************************************************************/
 
 static void
-shared_cinterion_init (gpointer g_iface)
+mm_shared_cinterion_default_init (MMSharedCinterionInterface *iface)
 {
-}
-
-GType
-mm_shared_cinterion_get_type (void)
-{
-    static GType shared_cinterion_type = 0;
-
-    if (!G_UNLIKELY (shared_cinterion_type)) {
-        static const GTypeInfo info = {
-            sizeof (MMSharedCinterion),  /* class_size */
-            shared_cinterion_init,       /* base_init */
-            NULL,                  /* base_finalize */
-        };
-
-        shared_cinterion_type = g_type_register_static (G_TYPE_INTERFACE, "MMSharedCinterion", &info, 0);
-        g_type_interface_add_prerequisite (shared_cinterion_type, MM_TYPE_IFACE_MODEM);
-        g_type_interface_add_prerequisite (shared_cinterion_type, MM_TYPE_IFACE_MODEM_VOICE);
-        g_type_interface_add_prerequisite (shared_cinterion_type, MM_TYPE_IFACE_MODEM_TIME);
-        g_type_interface_add_prerequisite (shared_cinterion_type, MM_TYPE_IFACE_MODEM_LOCATION);
-    }
-
-    return shared_cinterion_type;
 }

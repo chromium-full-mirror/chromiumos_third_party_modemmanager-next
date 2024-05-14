@@ -30,16 +30,16 @@
 #include "mm-broadband-modem-mbim-cinterion.h"
 #include "mm-shared-cinterion.h"
 
-static void iface_modem_init          (MMIfaceModem         *iface);
-static void iface_modem_location_init (MMIfaceModemLocation *iface);
-static void iface_modem_voice_init    (MMIfaceModemVoice    *iface);
-static void iface_modem_time_init     (MMIfaceModemTime     *iface);
-static void shared_cinterion_init     (MMSharedCinterion    *iface);
+static void iface_modem_init          (MMIfaceModemInterface         *iface);
+static void iface_modem_location_init (MMIfaceModemLocationInterface *iface);
+static void iface_modem_voice_init    (MMIfaceModemVoiceInterface    *iface);
+static void iface_modem_time_init     (MMIfaceModemTimeInterface     *iface);
+static void shared_cinterion_init     (MMSharedCinterionInterface    *iface);
 
-static MMIfaceModem         *iface_modem_parent;
-static MMIfaceModemLocation *iface_modem_location_parent;
-static MMIfaceModemVoice    *iface_modem_voice_parent;
-static MMIfaceModemTime     *iface_modem_time_parent;
+static MMIfaceModemInterface         *iface_modem_parent;
+static MMIfaceModemLocationInterface *iface_modem_location_parent;
+static MMIfaceModemVoiceInterface    *iface_modem_voice_parent;
+static MMIfaceModemTimeInterface     *iface_modem_time_parent;
 
 G_DEFINE_TYPE_EXTENDED (MMBroadbandModemMbimCinterion, mm_broadband_modem_mbim_cinterion, MM_TYPE_BROADBAND_MODEM_MBIM, 0,
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM, iface_modem_init)
@@ -80,7 +80,7 @@ mm_broadband_modem_mbim_cinterion_init (MMBroadbandModemMbimCinterion *self)
 }
 
 static void
-iface_modem_init (MMIfaceModem *iface)
+iface_modem_init (MMIfaceModemInterface *iface)
 {
     iface_modem_parent = g_type_interface_peek_parent (iface);
 
@@ -88,14 +88,14 @@ iface_modem_init (MMIfaceModem *iface)
     iface->reset_finish = mm_shared_cinterion_modem_reset_finish;
 }
 
-static MMIfaceModem *
+static MMIfaceModemInterface *
 peek_parent_interface (MMSharedCinterion *self)
 {
     return iface_modem_parent;
 }
 
 static void
-iface_modem_location_init (MMIfaceModemLocation *iface)
+iface_modem_location_init (MMIfaceModemLocationInterface *iface)
 {
     iface_modem_location_parent = g_type_interface_peek_parent (iface);
 
@@ -107,14 +107,14 @@ iface_modem_location_init (MMIfaceModemLocation *iface)
     iface->disable_location_gathering_finish = mm_shared_cinterion_disable_location_gathering_finish;
 }
 
-static MMIfaceModemLocation *
+static MMIfaceModemLocationInterface *
 peek_parent_location_interface (MMSharedCinterion *self)
 {
     return iface_modem_location_parent;
 }
 
 static void
-iface_modem_voice_init (MMIfaceModemVoice *iface)
+iface_modem_voice_init (MMIfaceModemVoiceInterface *iface)
 {
     iface_modem_voice_parent = g_type_interface_peek_parent (iface);
 
@@ -132,14 +132,14 @@ iface_modem_voice_init (MMIfaceModemVoice *iface)
     iface->cleanup_unsolicited_events_finish = mm_shared_cinterion_voice_cleanup_unsolicited_events_finish;
 }
 
-static MMIfaceModemVoice *
+static MMIfaceModemVoiceInterface *
 peek_parent_voice_interface (MMSharedCinterion *self)
 {
     return iface_modem_voice_parent;
 }
 
 static void
-iface_modem_time_init (MMIfaceModemTime *iface)
+iface_modem_time_init (MMIfaceModemTimeInterface *iface)
 {
     iface_modem_time_parent = g_type_interface_peek_parent (iface);
 
@@ -149,14 +149,14 @@ iface_modem_time_init (MMIfaceModemTime *iface)
     iface->cleanup_unsolicited_events_finish = mm_shared_cinterion_time_cleanup_unsolicited_events_finish;
 }
 
-static MMIfaceModemTime *
+static MMIfaceModemTimeInterface *
 peek_parent_time_interface (MMSharedCinterion *self)
 {
     return iface_modem_time_parent;
 }
 
 static void
-shared_cinterion_init (MMSharedCinterion *iface)
+shared_cinterion_init (MMSharedCinterionInterface *iface)
 {
     iface->peek_parent_interface          = peek_parent_interface;
     iface->peek_parent_location_interface = peek_parent_location_interface;

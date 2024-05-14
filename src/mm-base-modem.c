@@ -198,10 +198,10 @@ base_modem_create_net_port (MMBaseModem *self,
 }
 
 static MMPort *
-base_modem_create_tty_port (MMBaseModem        *self,
-                            const gchar        *name,
-                            MMKernelDevice     *kernel_device,
-                            MMPortType          ptype)
+base_modem_create_tty_port (MMBaseModem    *self,
+                            const gchar    *name,
+                            MMKernelDevice *kernel_device,
+                            MMPortType      ptype)
 {
     MMPort      *port = NULL;
     const gchar *flow_control_tag;
@@ -356,6 +356,10 @@ base_modem_internal_grab_port (MMBaseModem         *self,
         return NULL;
     }
 
+    g_assert (MM_BASE_MODEM_GET_CLASS (self)->create_tty_port);
+    g_assert (MM_BASE_MODEM_GET_CLASS (self)->create_usbmisc_port);
+    g_assert (MM_BASE_MODEM_GET_CLASS (self)->create_wwan_port);
+
     /* Explicitly ignored ports, grab them but explicitly flag them as ignored
      * right away, all the same way (i.e. regardless of subsystem). */
     if (ptype == MM_PORT_TYPE_IGNORED)
@@ -363,9 +367,9 @@ base_modem_internal_grab_port (MMBaseModem         *self,
     else if (g_str_equal (subsys, "net"))
         port = base_modem_create_net_port (self, name);
     else if (g_str_equal (subsys, "tty"))
-        port = base_modem_create_tty_port (self, name, kernel_device, ptype);
+        port = MM_BASE_MODEM_GET_CLASS (self)->create_tty_port (self, name, kernel_device, ptype);
     else if (g_str_equal (subsys, "usbmisc"))
-        port = base_modem_create_usbmisc_port (self, name, ptype);
+        port = MM_BASE_MODEM_GET_CLASS (self)->create_usbmisc_port (self, name, ptype);
     else if (g_str_equal (subsys, "rpmsg"))
         port = base_modem_create_rpmsg_port (self, name, ptype);
 #if defined WITH_QRTR
@@ -375,7 +379,7 @@ base_modem_internal_grab_port (MMBaseModem         *self,
     else if (g_str_equal (subsys, "virtual"))
         port = base_modem_create_virtual_port (self, name);
     else if (g_str_equal (subsys, "wwan"))
-        port = base_modem_create_wwan_port (self, name, ptype);
+        port = MM_BASE_MODEM_GET_CLASS (self)->create_wwan_port (self, name, ptype);
 
     if (!port) {
         g_set_error (error, MM_CORE_ERROR, MM_CORE_ERROR_UNSUPPORTED,
@@ -1102,35 +1106,67 @@ mm_base_modem_peek_data_ports (MMBaseModem *self)
     return self->priv->data;
 }
 
-MMPortSerialAt *
-mm_base_modem_get_best_at_port (MMBaseModem *self,
-                                GError **error)
+MMIfacePortAt *
+mm_base_modem_get_best_at_port (MMBaseModem  *self,
+                                GError      **error)
 {
-    MMPortSerialAt *best;
+    MMIfacePortAt *best;
 
     best = mm_base_modem_peek_best_at_port (self, error);
     return (best ? g_object_ref (best) : NULL);
 }
 
-MMPortSerialAt *
-mm_base_modem_peek_best_at_port (MMBaseModem *self,
-                                 GError **error)
+MMIfacePortAt *
+mm_base_modem_peek_best_at_port (MMBaseModem  *self,
+                                 GError      **error)
 {
+    gboolean supported;
+
+#if defined WITH_MBIM
+    /* Prefer an AT-capable MBIM port instead of a serial port */
+    if (self->priv->mbim) {
+        GList *l;
+
+        for (l = self->priv->mbim; l; l = g_list_next (l)) {
+            if (MM_IS_IFACE_PORT_AT (l->data) &&
+                mm_iface_port_at_check_support (MM_IFACE_PORT_AT (l->data), &supported, NULL) &&
+                supported)
+                return MM_IFACE_PORT_AT (l->data);
+        }
+    }
+#endif
+
+#if defined WITH_QMI
+    /* Prefer an AT-capable QMI port instead of a serial port */
+    if (self->priv->qmi) {
+        GList *l;
+
+        for (l = self->priv->qmi; l; l = g_list_next (l)) {
+            if (MM_IS_IFACE_PORT_AT (l->data) &&
+                mm_iface_port_at_check_support (MM_IFACE_PORT_AT (l->data), &supported, NULL) &&
+                supported)
+                return MM_IFACE_PORT_AT (l->data);
+        }
+    }
+#endif
+
     /* Decide which port to use */
-    if (self->priv->primary &&
-        !mm_port_get_connected (MM_PORT (self->priv->primary)))
-        return self->priv->primary;
+    if (self->priv->primary && !mm_port_get_connected (MM_PORT (self->priv->primary))) {
+        g_assert (MM_IS_IFACE_PORT_AT (self->priv->primary));
+        g_assert (mm_iface_port_at_check_support (MM_IFACE_PORT_AT (self->priv->primary), &supported, NULL) && supported);
+        return MM_IFACE_PORT_AT (self->priv->primary);
+    }
 
     /* If primary port is connected, check if we can get the secondary
      * port */
-    if (self->priv->secondary &&
-        !mm_port_get_connected (MM_PORT (self->priv->secondary)))
-        return self->priv->secondary;
+    if (self->priv->secondary && !mm_port_get_connected (MM_PORT (self->priv->secondary))) {
+        g_assert (MM_IS_IFACE_PORT_AT (self->priv->secondary));
+        g_assert (mm_iface_port_at_check_support (MM_IFACE_PORT_AT (self->priv->secondary), &supported, NULL) && supported);
+        return MM_IFACE_PORT_AT (self->priv->secondary);
+    }
 
     /* Otherwise, we cannot get any port */
-    g_set_error (error,
-                 MM_CORE_ERROR,
-                 MM_CORE_ERROR_CONNECTED,
+    g_set_error (error, MM_CORE_ERROR, MM_CORE_ERROR_FAILED,
                  "No AT port available to run command");
     return NULL;
 }
@@ -2031,7 +2067,10 @@ mm_base_modem_class_init (MMBaseModemClass *klass)
 
     g_type_class_add_private (object_class, sizeof (MMBaseModemPrivate));
 
-    /* Virtual methods */
+    klass->create_tty_port = base_modem_create_tty_port;
+    klass->create_usbmisc_port = base_modem_create_usbmisc_port;
+    klass->create_wwan_port = base_modem_create_wwan_port;
+
     object_class->get_property = get_property;
     object_class->set_property = set_property;
     object_class->finalize = finalize;

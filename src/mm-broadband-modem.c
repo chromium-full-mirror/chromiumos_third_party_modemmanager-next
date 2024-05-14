@@ -61,20 +61,20 @@
 #include "libqcdm/src/log-items.h"
 #include "mm-helper-enums-types.h"
 
-static void iface_modem_init (MMIfaceModem *iface);
-static void iface_modem_3gpp_init (MMIfaceModem3gpp *iface);
-static void iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManager *iface);
-static void iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssd *iface);
-static void iface_modem_cdma_init (MMIfaceModemCdma *iface);
-static void iface_modem_simple_init (MMIfaceModemSimple *iface);
-static void iface_modem_location_init (MMIfaceModemLocation *iface);
-static void iface_modem_messaging_init (MMIfaceModemMessaging *iface);
-static void iface_modem_voice_init (MMIfaceModemVoice *iface);
-static void iface_modem_time_init (MMIfaceModemTime *iface);
-static void iface_modem_signal_init (MMIfaceModemSignal *iface);
-static void iface_modem_oma_init (MMIfaceModemOma *iface);
-static void iface_modem_firmware_init (MMIfaceModemFirmware *iface);
-static void iface_modem_sar_init (MMIfaceModemSar *iface);
+static void iface_modem_init                      (MMIfaceModemInterface                   *iface);
+static void iface_modem_3gpp_init                 (MMIfaceModem3gppInterface               *iface);
+static void iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManagerInterface *iface);
+static void iface_modem_3gpp_ussd_init            (MMIfaceModem3gppUssdInterface           *iface);
+static void iface_modem_cdma_init                 (MMIfaceModemCdmaInterface               *iface);
+static void iface_modem_simple_init               (MMIfaceModemSimpleInterface             *iface);
+static void iface_modem_location_init             (MMIfaceModemLocationInterface           *iface);
+static void iface_modem_messaging_init            (MMIfaceModemMessagingInterface          *iface);
+static void iface_modem_voice_init                (MMIfaceModemVoiceInterface              *iface);
+static void iface_modem_time_init                 (MMIfaceModemTimeInterface               *iface);
+static void iface_modem_signal_init               (MMIfaceModemSignalInterface             *iface);
+static void iface_modem_oma_init                  (MMIfaceModemOmaInterface                *iface);
+static void iface_modem_firmware_init             (MMIfaceModemFirmwareInterface           *iface);
+static void iface_modem_sar_init                  (MMIfaceModemSarInterface                *iface);
 
 G_DEFINE_TYPE_EXTENDED (MMBroadbandModem, mm_broadband_modem, MM_TYPE_BASE_MODEM, 0,
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM, iface_modem_init)
@@ -2118,8 +2118,8 @@ qcdm_evdo_pilot_sets_log_handle (MMPortSerialQcdm *port,
 }
 
 typedef struct {
-    MMPortSerial *at_port;
-    MMPortSerial *qcdm_port;
+    MMIfacePortAt *at_port;
+    MMPortSerial  *qcdm_port;
 } SignalQualityContext;
 
 static void
@@ -2224,7 +2224,7 @@ signal_quality_csq (GTask *task)
 
     mm_base_modem_at_sequence_full (
         MM_BASE_MODEM (self),
-        MM_PORT_SERIAL_AT (ctx->at_port),
+        ctx->at_port,
         signal_quality_csq_sequence,
         NULL, /* response_processor_context */
         NULL, /* response_processor_context_free */
@@ -2319,7 +2319,7 @@ signal_quality_cind (GTask *task)
     ctx = g_task_get_task_data (task);
 
     mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                   MM_PORT_SERIAL_AT (ctx->at_port),
+                                   ctx->at_port,
                                    "+CIND?",
                                    5,
                                    FALSE,
@@ -2444,7 +2444,7 @@ modem_load_signal_quality (MMIfaceModem *_self,
     g_task_set_task_data (task, ctx, (GDestroyNotify)signal_quality_context_free);
 
     /* Check whether we can get a non-connected AT port */
-    ctx->at_port = (MMPortSerial *)mm_base_modem_get_best_at_port (MM_BASE_MODEM (self), &error);
+    ctx->at_port = mm_base_modem_get_best_at_port (MM_BASE_MODEM (self), &error);
     if (ctx->at_port) {
         if (!self->priv->modem_cind_disabled &&
             self->priv->modem_cind_supported &&
@@ -3646,7 +3646,7 @@ run_unsolicited_events_setup (GTask *task)
     /* Enable unsolicited events in given port */
     if (port && command) {
         mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                       port,
+                                       MM_IFACE_PORT_AT (port),
                                        command,
                                        3,
                                        FALSE,
@@ -4876,8 +4876,8 @@ registration_state_changed (MMPortSerialAt *port,
      * we fight with the custom commands.  Plus CREG/CGREG access technologies
      * don't have fine-grained distinction between HSxPA or GPRS/EDGE, etc.
      */
-    if (MM_IFACE_MODEM_GET_INTERFACE (self)->load_access_technologies == modem_load_access_technologies ||
-        MM_IFACE_MODEM_GET_INTERFACE (self)->load_access_technologies == NULL)
+    if (MM_IFACE_MODEM_GET_IFACE (self)->load_access_technologies == modem_load_access_technologies ||
+        MM_IFACE_MODEM_GET_IFACE (self)->load_access_technologies == NULL)
         mm_iface_modem_3gpp_update_access_technologies (MM_IFACE_MODEM_3GPP (self), act);
 
     mm_iface_modem_3gpp_update_location (MM_IFACE_MODEM_3GPP (self), lac, tac, cell_id);
@@ -5004,8 +5004,8 @@ modem_3gpp_scan_networks (MMIfaceModem3gpp *self,
 /* Register in network (3GPP interface) */
 
 typedef struct {
-    gchar          *operator_id;
-    MMPortSerialAt *port;
+    gchar         *operator_id;
+    MMIfacePortAt *port;
 } RegisterInNetworkContext;
 
 static void
@@ -5101,7 +5101,7 @@ modem_3gpp_register_in_network (MMIfaceModem3gpp    *self,
 {
     RegisterInNetworkContext *ctx;
     GTask                    *task;
-    MMPortSerialAt           *port;
+    MMIfacePortAt            *port;
     GError                   *error = NULL;
     g_autofree gchar         *command = NULL;
 
@@ -5697,7 +5697,7 @@ unsolicited_registration_events_sequence_ready (MMBroadbandModem *self,
         if (command) {
             mm_base_modem_at_command_full (
                 MM_BASE_MODEM (self),
-                ctx->secondary,
+                MM_IFACE_PORT_AT (ctx->secondary),
                 g_variant_get_string (command, NULL),
                 3,
                 FALSE,
@@ -5718,7 +5718,7 @@ unsolicited_registration_events_sequence_ready (MMBroadbandModem *self,
             registration_sequence = ctx->enable ? eps_registration_sequence : eps_unregistration_sequence;
         mm_base_modem_at_sequence_full (
             MM_BASE_MODEM (self),
-            ctx->secondary,
+            MM_IFACE_PORT_AT (ctx->secondary),
             registration_sequence,
             NULL,  /* response processor context */
             NULL,  /* response processor context free */
@@ -5751,7 +5751,7 @@ unsolicited_registration_events_context_step (GTask *task)
         ctx->run_cs = FALSE;
         mm_base_modem_at_sequence_full (
             MM_BASE_MODEM (self),
-            ctx->primary,
+            MM_IFACE_PORT_AT (ctx->primary),
             ctx->enable ? cs_registration_sequence : cs_unregistration_sequence,
             NULL,  /* response processor context */
             NULL,  /* response processor context free */
@@ -5766,7 +5766,7 @@ unsolicited_registration_events_context_step (GTask *task)
         ctx->run_ps = FALSE;
         mm_base_modem_at_sequence_full (
             MM_BASE_MODEM (self),
-            ctx->primary,
+            MM_IFACE_PORT_AT (ctx->primary),
             ctx->enable ? ps_registration_sequence : ps_unregistration_sequence,
             NULL,  /* response processor context */
             NULL,  /* response processor context free */
@@ -5781,7 +5781,7 @@ unsolicited_registration_events_context_step (GTask *task)
         ctx->run_eps = FALSE;
         mm_base_modem_at_sequence_full (
             MM_BASE_MODEM (self),
-            ctx->primary,
+            MM_IFACE_PORT_AT (ctx->primary),
             ctx->enable ? eps_registration_sequence : eps_unregistration_sequence,
             NULL,  /* response processor context */
             NULL,  /* response processor context free */
@@ -7435,7 +7435,7 @@ modem_messaging_enable_unsolicited_events_primary_ready (MMBaseModem  *self,
                     mm_port_get_device (MM_PORT (ctx->secondary)));
         mm_base_modem_at_sequence_full (
             MM_BASE_MODEM (self),
-            ctx->secondary,
+            MM_IFACE_PORT_AT (ctx->secondary),
             cnmi_sequence,
             NULL, /* response_processor_context */
             NULL, /* response_processor_context_free */
@@ -7478,7 +7478,7 @@ modem_messaging_enable_unsolicited_events (MMIfaceModemMessaging *self,
                 mm_port_get_device (MM_PORT (ctx->primary)));
     mm_base_modem_at_sequence_full (
         MM_BASE_MODEM (self),
-        ctx->primary,
+        MM_IFACE_PORT_AT (ctx->primary),
         cnmi_sequence,
         NULL, /* response_processor_context */
         NULL, /* response_processor_context_free */
@@ -8379,7 +8379,7 @@ run_voice_unsolicited_events_setup (GTask *task)
     /* Enable/Disable unsolicited events in given port */
     if (port && command) {
         mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                       port,
+                                       MM_IFACE_PORT_AT (port),
                                        command,
                                        3,
                                        FALSE,
@@ -9781,7 +9781,7 @@ setup_registration_checks_results_new (MMBroadbandModem *self,
         results->skip_qcdm_hdr_step = TRUE;
     }
 
-    if (MM_IFACE_MODEM_CDMA_GET_INTERFACE (self)->get_detailed_registration_state ==
+    if (MM_IFACE_MODEM_CDMA_GET_IFACE (self)->get_detailed_registration_state ==
         modem_cdma_get_detailed_registration_state) {
         /* Skip CDMA1x Serving System check if we have Sprint specific
          * commands AND if the default detailed registration checker
@@ -11052,7 +11052,7 @@ enabling_modem_init (MMBroadbandModem    *self,
      * So run ATZ alone.
      */
     mm_base_modem_at_command_full (MM_BASE_MODEM (self),
-                                   primary,
+                                   MM_IFACE_PORT_AT (primary),
                                    "Z",
                                    6,
                                    FALSE,
@@ -13478,7 +13478,7 @@ dispose (GObject *object)
 }
 
 static void
-iface_modem_init (MMIfaceModem *iface)
+iface_modem_init (MMIfaceModemInterface *iface)
 {
     /* Initialization steps */
     iface->load_current_capabilities = modem_load_current_capabilities;
@@ -13534,7 +13534,7 @@ iface_modem_init (MMIfaceModem *iface)
 }
 
 static void
-iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
+iface_modem_3gpp_init (MMIfaceModem3gppInterface *iface)
 {
     /* Initialization steps */
     iface->load_imei = modem_3gpp_load_imei;
@@ -13583,7 +13583,7 @@ iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
 }
 
 static void
-iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManager *iface)
+iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManagerInterface *iface)
 {
     /* Initialization steps */
     iface->check_support = modem_3gpp_profile_manager_check_support;
@@ -13605,7 +13605,7 @@ iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManager *iface)
 }
 
 static void
-iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssd *iface)
+iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssdInterface *iface)
 {
     /* Initialization steps */
     iface->check_support = modem_3gpp_ussd_check_support;
@@ -13633,7 +13633,7 @@ iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssd *iface)
 }
 
 static void
-iface_modem_cdma_init (MMIfaceModemCdma *iface)
+iface_modem_cdma_init (MMIfaceModemCdmaInterface *iface)
 {
     /* Initialization steps */
     iface->load_esn = modem_cdma_load_esn;
@@ -13665,12 +13665,12 @@ iface_modem_cdma_init (MMIfaceModemCdma *iface)
 }
 
 static void
-iface_modem_simple_init (MMIfaceModemSimple *iface)
+iface_modem_simple_init (MMIfaceModemSimpleInterface *iface)
 {
 }
 
 static void
-iface_modem_location_init (MMIfaceModemLocation *iface)
+iface_modem_location_init (MMIfaceModemLocationInterface *iface)
 {
     iface->load_capabilities = modem_location_load_capabilities;
     iface->load_capabilities_finish = modem_location_load_capabilities_finish;
@@ -13679,7 +13679,7 @@ iface_modem_location_init (MMIfaceModemLocation *iface)
 }
 
 static void
-iface_modem_messaging_init (MMIfaceModemMessaging *iface)
+iface_modem_messaging_init (MMIfaceModemMessagingInterface *iface)
 {
     iface->check_support = modem_messaging_check_support;
     iface->check_support_finish = modem_messaging_check_support_finish;
@@ -13703,7 +13703,7 @@ iface_modem_messaging_init (MMIfaceModemMessaging *iface)
 }
 
 static void
-iface_modem_voice_init (MMIfaceModemVoice *iface)
+iface_modem_voice_init (MMIfaceModemVoiceInterface *iface)
 {
     iface->check_support = modem_voice_check_support;
     iface->check_support_finish = modem_voice_check_support_finish;
@@ -13743,7 +13743,7 @@ iface_modem_voice_init (MMIfaceModemVoice *iface)
 }
 
 static void
-iface_modem_time_init (MMIfaceModemTime *iface)
+iface_modem_time_init (MMIfaceModemTimeInterface *iface)
 {
     iface->check_support = modem_time_check_support;
     iface->check_support_finish = modem_time_check_support_finish;
@@ -13754,7 +13754,7 @@ iface_modem_time_init (MMIfaceModemTime *iface)
 }
 
 static void
-iface_modem_signal_init (MMIfaceModemSignal *iface)
+iface_modem_signal_init (MMIfaceModemSignalInterface *iface)
 {
     iface->check_support        = modem_signal_check_support;
     iface->check_support_finish = modem_signal_check_support_finish;
@@ -13763,19 +13763,18 @@ iface_modem_signal_init (MMIfaceModemSignal *iface)
 }
 
 static void
-iface_modem_oma_init (MMIfaceModemOma *iface)
+iface_modem_oma_init (MMIfaceModemOmaInterface *iface)
 {
 }
 
 static void
-iface_modem_firmware_init (MMIfaceModemFirmware *iface)
+iface_modem_firmware_init (MMIfaceModemFirmwareInterface *iface)
 {
 }
 
 static void
-iface_modem_sar_init (MMIfaceModemSar *iface)
+iface_modem_sar_init (MMIfaceModemSarInterface *iface)
 {
-
 }
 
 static void

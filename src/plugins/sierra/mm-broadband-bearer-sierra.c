@@ -116,10 +116,10 @@ load_connection_status (MMBaseBearer        *self,
                         GAsyncReadyCallback  callback,
                         gpointer             user_data)
 {
-    GTask          *task;
-    MMBaseModem    *modem = NULL;
-    MMPortSerialAt *port;
-    gint            profile_id;
+    GTask         *task;
+    MMBaseModem   *modem = NULL;
+    MMIfacePortAt *port;
+    gint           profile_id;
 
     task = g_task_new (self, NULL, callback, user_data);
 
@@ -305,7 +305,7 @@ dial_3gpp_context_step (GTask *task)
 
     case DIAL_3GPP_STEP_PS_ATTACH:
         mm_base_modem_at_command_full (ctx->modem,
-                                       ctx->primary,
+                                       MM_IFACE_PORT_AT (ctx->primary),
                                        "+CGATT=1",
                                        10,
                                        FALSE,
@@ -382,7 +382,7 @@ dial_3gpp_context_step (GTask *task)
             }
 
             mm_base_modem_at_command_full (ctx->modem,
-                                           ctx->primary,
+                                           MM_IFACE_PORT_AT (ctx->primary),
                                            command,
                                            3,
                                            FALSE,
@@ -405,7 +405,7 @@ dial_3gpp_context_step (GTask *task)
 
             command = g_strdup_printf ("!SCACT=1,%d", ctx->cid);
             mm_base_modem_at_command_full (ctx->modem,
-                                           ctx->primary,
+                                           MM_IFACE_PORT_AT (ctx->primary),
                                            command,
                                            MM_BASE_BEARER_DEFAULT_CONNECTION_TIMEOUT,
                                            FALSE,
@@ -536,7 +536,7 @@ disconnect_3gpp (MMBroadbandBearer *self,
         /* Use specific CID */
         command = g_strdup_printf ("!SCACT=0,%u", cid);
         mm_base_modem_at_command_full (MM_BASE_MODEM (modem),
-                                       primary,
+                                       MM_IFACE_PORT_AT (primary),
                                        command,
                                        MM_BASE_BEARER_DEFAULT_DISCONNECTION_TIMEOUT,
                                        FALSE,

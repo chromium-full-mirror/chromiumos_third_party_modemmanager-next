@@ -53,23 +53,23 @@
 #include "mm-call-qmi.h"
 #include "mm-call-list.h"
 
-static void iface_modem_init (MMIfaceModem *iface);
-static void iface_modem_3gpp_init (MMIfaceModem3gpp *iface);
-static void iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManager *iface);
-static void iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssd *iface);
-static void iface_modem_voice_init (MMIfaceModemVoice *iface);
-static void iface_modem_cdma_init (MMIfaceModemCdma *iface);
-static void iface_modem_messaging_init (MMIfaceModemMessaging *iface);
-static void iface_modem_location_init (MMIfaceModemLocation *iface);
-static void iface_modem_oma_init (MMIfaceModemOma *iface);
-static void iface_modem_firmware_init (MMIfaceModemFirmware *iface);
-static void iface_modem_sar_init (MMIfaceModemSar *iface);
-static void iface_modem_signal_init (MMIfaceModemSignal *iface);
-static void shared_qmi_init (MMSharedQmi *iface);
+static void iface_modem_init                      (MMIfaceModemInterface                   *iface);
+static void iface_modem_3gpp_init                 (MMIfaceModem3gppInterface               *iface);
+static void iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManagerInterface *iface);
+static void iface_modem_3gpp_ussd_init            (MMIfaceModem3gppUssdInterface           *iface);
+static void iface_modem_voice_init                (MMIfaceModemVoiceInterface              *iface);
+static void iface_modem_cdma_init                 (MMIfaceModemCdmaInterface               *iface);
+static void iface_modem_messaging_init            (MMIfaceModemMessagingInterface          *iface);
+static void iface_modem_location_init             (MMIfaceModemLocationInterface           *iface);
+static void iface_modem_oma_init                  (MMIfaceModemOmaInterface                *iface);
+static void iface_modem_firmware_init             (MMIfaceModemFirmwareInterface           *iface);
+static void iface_modem_sar_init                  (MMIfaceModemSarInterface                *iface);
+static void iface_modem_signal_init               (MMIfaceModemSignalInterface             *iface);
+static void shared_qmi_init                       (MMSharedQmi                             *iface);
 
-static MMIfaceModemLocation  *iface_modem_location_parent;
-static MMIfaceModemMessaging *iface_modem_messaging_parent;
-static MMIfaceModemVoice     *iface_modem_voice_parent;
+static MMIfaceModemLocationInterface  *iface_modem_location_parent;
+static MMIfaceModemMessagingInterface *iface_modem_messaging_parent;
+static MMIfaceModemVoiceInterface     *iface_modem_voice_parent;
 
 G_DEFINE_TYPE_EXTENDED (MMBroadbandModemQmi, mm_broadband_modem_qmi, MM_TYPE_BROADBAND_MODEM, 0,
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM, iface_modem_init)
@@ -13995,7 +13995,7 @@ dispose (GObject *object)
 }
 
 static void
-iface_modem_init (MMIfaceModem *iface)
+iface_modem_init (MMIfaceModemInterface *iface)
 {
     /* Initialization steps */
     iface->load_current_capabilities = mm_shared_qmi_load_current_capabilities;
@@ -14092,7 +14092,7 @@ iface_modem_init (MMIfaceModem *iface)
 }
 
 static void
-iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
+iface_modem_3gpp_init (MMIfaceModem3gppInterface *iface)
 {
     /* Initialization steps */
     iface->load_imei = modem_3gpp_load_imei;
@@ -14142,7 +14142,7 @@ iface_modem_3gpp_init (MMIfaceModem3gpp *iface)
 }
 
 static void
-iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManager *iface)
+iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManagerInterface *iface)
 {
     /* No explicit check support for the profile management feature, just
      * rely on the generic way to check for support */
@@ -14176,7 +14176,7 @@ iface_modem_3gpp_profile_manager_init (MMIfaceModem3gppProfileManager *iface)
 }
 
 static void
-iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssd *iface)
+iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssdInterface *iface)
 {
     iface->check_support = modem_3gpp_ussd_check_support;
     iface->check_support_finish = modem_3gpp_ussd_check_support_finish;
@@ -14195,7 +14195,7 @@ iface_modem_3gpp_ussd_init (MMIfaceModem3gppUssd *iface)
 }
 
 static void
-iface_modem_voice_init (MMIfaceModemVoice *iface)
+iface_modem_voice_init (MMIfaceModemVoiceInterface *iface)
 {
     iface_modem_voice_parent = g_type_interface_peek_parent (iface);
 
@@ -14237,7 +14237,7 @@ iface_modem_voice_init (MMIfaceModemVoice *iface)
 }
 
 static void
-iface_modem_cdma_init (MMIfaceModemCdma *iface)
+iface_modem_cdma_init (MMIfaceModemCdmaInterface *iface)
 {
     iface->load_meid = modem_cdma_load_meid;
     iface->load_meid_finish = modem_cdma_load_meid_finish;
@@ -14266,7 +14266,7 @@ iface_modem_cdma_init (MMIfaceModemCdma *iface)
 }
 
 static void
-iface_modem_messaging_init (MMIfaceModemMessaging *iface)
+iface_modem_messaging_init (MMIfaceModemMessagingInterface *iface)
 {
     iface_modem_messaging_parent = g_type_interface_peek_parent (iface);
 
@@ -14292,7 +14292,7 @@ iface_modem_messaging_init (MMIfaceModemMessaging *iface)
 }
 
 static void
-iface_modem_location_init (MMIfaceModemLocation *iface)
+iface_modem_location_init (MMIfaceModemLocationInterface *iface)
 {
     iface_modem_location_parent = g_type_interface_peek_parent (iface);
 
@@ -14316,7 +14316,7 @@ iface_modem_location_init (MMIfaceModemLocation *iface)
 }
 
 static void
-iface_modem_sar_init (MMIfaceModemSar *iface)
+iface_modem_sar_init (MMIfaceModemSarInterface *iface)
 {
     iface->check_support = sar_check_support;
     iface->check_support_finish  = sar_check_support_finish;
@@ -14331,7 +14331,7 @@ iface_modem_sar_init (MMIfaceModemSar *iface)
 }
 
 static void
-iface_modem_signal_init (MMIfaceModemSignal *iface)
+iface_modem_signal_init (MMIfaceModemSignalInterface *iface)
 {
     iface->check_support = signal_check_support;
     iface->check_support_finish = signal_check_support_finish;
@@ -14342,7 +14342,7 @@ iface_modem_signal_init (MMIfaceModemSignal *iface)
 }
 
 static void
-iface_modem_oma_init (MMIfaceModemOma *iface)
+iface_modem_oma_init (MMIfaceModemOmaInterface *iface)
 {
     iface->check_support = oma_check_support;
     iface->check_support_finish = oma_check_support_finish;
@@ -14367,7 +14367,7 @@ iface_modem_oma_init (MMIfaceModemOma *iface)
 }
 
 static void
-iface_modem_firmware_init (MMIfaceModemFirmware *iface)
+iface_modem_firmware_init (MMIfaceModemFirmwareInterface *iface)
 {
     iface->load_list = firmware_load_list;
     iface->load_list_finish = firmware_load_list_finish;
@@ -14377,7 +14377,7 @@ iface_modem_firmware_init (MMIfaceModemFirmware *iface)
     iface->change_current_finish = firmware_change_current_finish;
 }
 
-static MMIfaceModemLocation *
+static MMIfaceModemLocationInterface *
 peek_parent_location_interface (MMSharedQmi *self)
 {
     return iface_modem_location_parent;

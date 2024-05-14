@@ -1048,7 +1048,7 @@ call_start (MMBaseCall          *self,
     GError         *error = NULL;
     GTask          *task;
     gchar          *cmd;
-    MMPortSerialAt *port;
+    MMIfacePortAt  *port;
 
     task = g_task_new (self, NULL, callback, user_data);
 

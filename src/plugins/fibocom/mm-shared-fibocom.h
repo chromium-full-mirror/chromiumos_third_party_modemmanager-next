@@ -27,32 +27,32 @@
 #include "mm-iface-modem.h"
 #include "mm-iface-modem-firmware.h"
 
-#define MM_TYPE_SHARED_FIBOCOM               (mm_shared_fibocom_get_type ())
-#define MM_SHARED_FIBOCOM(obj)               (G_TYPE_CHECK_INSTANCE_CAST ((obj), MM_TYPE_SHARED_FIBOCOM, MMSharedFibocom))
-#define MM_IS_SHARED_FIBOCOM(obj)            (G_TYPE_CHECK_INSTANCE_TYPE ((obj), MM_TYPE_SHARED_FIBOCOM))
-#define MM_SHARED_FIBOCOM_GET_INTERFACE(obj) (G_TYPE_INSTANCE_GET_INTERFACE ((obj), MM_TYPE_SHARED_FIBOCOM, MMSharedFibocom))
+#define MM_TYPE_SHARED_FIBOCOM mm_shared_fibocom_get_type ()
+G_DECLARE_INTERFACE (MMSharedFibocom, mm_shared_fibocom, MM, SHARED_FIBOCOM, MMIfaceModem)
 
-typedef struct _MMSharedFibocom MMSharedFibocom;
-
-struct _MMSharedFibocom {
+struct _MMSharedFibocomInterface {
     GTypeInterface g_iface;
 
-    /* Peek broadband modem class of the parent class of the object */
-    MMBroadbandModemClass * (* peek_parent_broadband_modem_class) (MMSharedFibocom *self);
+    /* Peek parent class of the object */
+    MMBaseModemClass * (* peek_parent_class) (MMSharedFibocom *self);
 
     /* Peek 3GPP interface of the parent class of the object */
-    MMIfaceModem3gpp * (* peek_parent_3gpp_interface) (MMSharedFibocom *self);
+    MMIfaceModem3gppInterface * (* peek_parent_3gpp_interface) (MMSharedFibocom *self);
 };
 
-GType mm_shared_fibocom_get_type (void);
-
 void mm_shared_fibocom_setup_ports (MMBroadbandModem *self);
+
+MMPort *mm_shared_fibocom_create_usbmisc_port (MMBaseModem *self,
+                                               const gchar *name,
+                                               MMPortType   ptype);
+MMPort *mm_shared_fibocom_create_wwan_port    (MMBaseModem *self,
+                                               const gchar *name,
+                                               MMPortType   ptype);
 
 void     mm_shared_fibocom_set_initial_eps_bearer_settings        (MMIfaceModem3gpp    *self,
                                                                    MMBearerProperties  *config,
                                                                    GAsyncReadyCallback  callback,
                                                                    gpointer             user_data);
-
 gboolean mm_shared_fibocom_set_initial_eps_bearer_settings_finish (MMIfaceModem3gpp    *self,
                                                                    GAsyncResult        *res,
                                                                    GError             **error);
@@ -60,7 +60,6 @@ gboolean mm_shared_fibocom_set_initial_eps_bearer_settings_finish (MMIfaceModem3
 void                      mm_shared_fibocom_firmware_load_update_settings        (MMIfaceModemFirmware  *self,
                                                                                   GAsyncReadyCallback    callback,
                                                                                   gpointer               user_data);
-
 MMFirmwareUpdateSettings *mm_shared_fibocom_firmware_load_update_settings_finish (MMIfaceModemFirmware  *self,
                                                                                   GAsyncResult          *res,
                                                                                   GError               **error);
