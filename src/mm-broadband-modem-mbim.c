@@ -1730,8 +1730,7 @@ unlock_required_subscriber_ready_state_ready (MbimDevice   *device,
 
     /* Initialized */
     if (ready_state == MBIM_SUBSCRIBER_READY_STATE_DEVICE_LOCKED ||
-        ready_state == MBIM_SUBSCRIBER_READY_STATE_INITIALIZED ||
-        ready_state == MBIM_SUBSCRIBER_READY_STATE_NO_ESIM_PROFILE) {
+        ready_state == MBIM_SUBSCRIBER_READY_STATE_INITIALIZED) {
         MbimMessage *message;
 
         /* Query which lock is to unlock */
