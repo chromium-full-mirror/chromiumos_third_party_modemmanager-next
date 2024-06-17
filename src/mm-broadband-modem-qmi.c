@@ -5415,6 +5415,7 @@ network_reject_indication_cb (QmiClientNas                        *client,
     guint16                    mcc = 0;
     guint16                    mnc = 0;
     guint32                    closed_subscriber_group = 0;
+    gboolean                   has_pcs_digit;
 
     mm_obj_warn (self, "network reject indication received");
     if (qmi_indication_nas_network_reject_output_get_service_domain (output, &service_domain, NULL))
@@ -5423,12 +5424,28 @@ network_reject_indication_cb (QmiClientNas                        *client,
         mm_obj_warn (self, "  radio interface: %s", qmi_nas_radio_interface_get_string (radio_interface));
     if (qmi_indication_nas_network_reject_output_get_reject_cause (output, &reject_cause, NULL))
         mm_obj_warn (self, "  reject cause: %s", qmi_nas_reject_cause_get_string (reject_cause));
-    if (qmi_indication_nas_network_reject_output_get_plmn (output, &mcc, &mnc, NULL, NULL)) {
+    if (qmi_indication_nas_network_reject_output_get_plmn (output, &mcc, &mnc, &has_pcs_digit, NULL)) {
         mm_obj_warn (self, "  mcc: %" G_GUINT16_FORMAT, mcc);
         mm_obj_warn (self, "  mnc: %" G_GUINT16_FORMAT, mnc);
     }
     if (qmi_indication_nas_network_reject_output_get_closed_subscriber_group (output, &closed_subscriber_group, NULL))
         mm_obj_warn (self, "  closed subscriber group: %u", closed_subscriber_group);
+
+    if (mm_iface_modem_is_3gpp (MM_IFACE_MODEM (self))) {
+        MMNetworkError mm_nw_error;
+        MMModemAccessTechnology access_technology;
+        g_autofree gchar *operator_id = NULL;
+
+        mm_nw_error = mm_modem_nw_error_from_qmi_nw_error (reject_cause);
+        access_technology  = mm_modem_access_technology_from_qmi_radio_interface (radio_interface);
+        if (has_pcs_digit)
+            operator_id = g_strdup_printf ("%.3" G_GUINT16_FORMAT "%.3" G_GUINT16_FORMAT, mcc, mnc);
+        else
+            operator_id = g_strdup_printf ("%.3" G_GUINT16_FORMAT "%.2" G_GUINT16_FORMAT, mcc, mnc);
+
+        mm_iface_modem_3gpp_update_network_rejection (MM_IFACE_MODEM_3GPP (self),
+                                                      mm_nw_error, operator_id, NULL, access_technology);
+    }
 }
 
 static void
@@ -11532,20 +11549,16 @@ modem_3gpp_load_initial_eps_bearer (MMIfaceModem3gpp    *self,
 
 typedef enum {
     SET_INITIAL_EPS_BEARER_SETTINGS_STEP_FIRST,
-    SET_INITIAL_EPS_BEARER_SETTINGS_STEP_LOAD_POWER_STATE,
-    SET_INITIAL_EPS_BEARER_SETTINGS_STEP_POWER_DOWN,
     SET_INITIAL_EPS_BEARER_SETTINGS_STEP_HANDLE_APP_PROFILE,
     SET_INITIAL_EPS_BEARER_SETTINGS_STEP_MODIFY_PROFILE,
     SET_INITIAL_EPS_BEARER_SETTINGS_STEP_SET_LTE_ATTACH_PDN,
-    SET_INITIAL_EPS_BEARER_SETTINGS_STEP_POWER_UP,
-    SET_INITIAL_EPS_BEARER_SETTINGS_STEP_LAST_SETTING,
+    SET_INITIAL_EPS_BEARER_SETTINGS_STEP_LAST,
 } SetInitialEpsBearerSettingsStep;
 
 typedef struct {
     SetInitialEpsBearerSettingsStep  step;
     QmiClientWds                    *client;
     MM3gppProfile                   *profile;
-    MMModemPowerState                power_state;
     gboolean                         setting_mm_owned_pdn;
     gboolean                         update_lte_attach_pdn;
 } SetInitialEpsBearerSettingsContext;
@@ -11567,27 +11580,6 @@ modem_3gpp_set_initial_eps_bearer_settings_finish (MMIfaceModem3gpp  *self,
 }
 
 static void set_initial_eps_bearer_settings_step (GTask *task);
-
-static void
-set_initial_eps_bearer_power_up_ready (MMIfaceModem *self,
-                                       GAsyncResult *res,
-                                       GTask        *task)
-{
-    SetInitialEpsBearerSettingsContext *ctx;
-    GError                             *error = NULL;
-
-    ctx = g_task_get_task_data (task);
-
-    if (!modem_power_up_down_off_finish (self, res, &error)) {
-        g_prefix_error (&error, "Couldn't power up modem: ");
-        g_task_return_error (task, error);
-        g_object_unref (task);
-        return;
-    }
-
-    ctx->step++;
-    set_initial_eps_bearer_settings_step (task);
-}
 
 static void
 set_initial_eps_bearer_set_lte_attach_pdn_ready (QmiClientWds *client,
@@ -11627,8 +11619,8 @@ static void
 set_initial_eps_bearer_set_lte_attach_pdn (GTask *task)
 {
     g_autoptr(QmiMessageWdsSetLteAttachPdnListInput)  input = NULL;
-    MMBroadbandModemQmi                *self;
-    SetInitialEpsBearerSettingsContext *ctx;
+    MMBroadbandModemQmi                              *self;
+    SetInitialEpsBearerSettingsContext               *ctx;
 
     self = g_task_get_source_object (task);
     ctx  = g_task_get_task_data (task);
@@ -11668,7 +11660,7 @@ set_initial_eps_bearer_modify_profile_ready (MMIfaceModem3gppProfileManager *sel
         return;
     }
 
-    if (mm_3gpp_profile_get_profile_id(ctx->profile) == MM_3GPP_PROFILE_ID_UNKNOWN) {
+    if (mm_3gpp_profile_get_profile_id (ctx->profile) == MM_3GPP_PROFILE_ID_UNKNOWN) {
         // The profile was just created.
         ctx->update_lte_attach_pdn = TRUE;
         /* Update |default_attach_pdn| now so it can be modified in the next step. */
@@ -11697,16 +11689,17 @@ set_initial_eps_bearer_modify_profile (GTask *task)
 }
 
 static void
-set_initial_eps_bearer_delete_mm_profile_ready (MMIfaceModem3gppProfileManager *self,
+set_initial_eps_bearer_delete_mm_profile_ready (MMIfaceModem3gppProfileManager *_self,
                                                 GAsyncResult                   *res,
                                                 GTask                          *task)
 {
+    MMBroadbandModemQmi                *self = MM_BROADBAND_MODEM_QMI (_self);
     GError                             *error = NULL;
     SetInitialEpsBearerSettingsContext *ctx;
 
     ctx = g_task_get_task_data (task);
 
-    if (!modem_3gpp_profile_manager_delete_profile_finish (MM_IFACE_MODEM_3GPP_PROFILE_MANAGER(self), res, &error)) {
+    if (!modem_3gpp_profile_manager_delete_profile_finish (_self, res, &error)) {
         g_prefix_error (&error, "Couldn't delete the profile: ");
         g_task_return_error (task, error);
         g_object_unref (task);
@@ -11715,9 +11708,9 @@ set_initial_eps_bearer_delete_mm_profile_ready (MMIfaceModem3gppProfileManager *
 
     ctx->step = SET_INITIAL_EPS_BEARER_SETTINGS_STEP_SET_LTE_ATTACH_PDN;
     ctx->update_lte_attach_pdn = TRUE;
-    MM_BROADBAND_MODEM_QMI(self)->priv->current_pdn_list = g_array_remove_index (MM_BROADBAND_MODEM_QMI(self)->priv->current_pdn_list, 0);
-    if (MM_BROADBAND_MODEM_QMI(self)->priv->current_pdn_list->len > 0)
-        MM_BROADBAND_MODEM_QMI(self)->priv->default_attach_pdn = g_array_index (MM_BROADBAND_MODEM_QMI(self)->priv->current_pdn_list, guint16, 0);
+    self->priv->current_pdn_list = g_array_remove_index (self->priv->current_pdn_list, 0);
+    if (self->priv->current_pdn_list->len > 0)
+        self->priv->default_attach_pdn = g_array_index (self->priv->current_pdn_list, guint16, 0);
     set_initial_eps_bearer_settings_step (task);
 }
 
@@ -11738,54 +11731,10 @@ set_initial_eps_bearer_delete_mm_profile (GTask *task)
 }
 
 static void
-set_initial_eps_bearer_power_down_ready (MMIfaceModem *self,
-                                         GAsyncResult *res,
-                                         GTask        *task)
-{
-    SetInitialEpsBearerSettingsContext *ctx;
-    GError                             *error = NULL;
-
-    ctx = g_task_get_task_data (task);
-
-    if (!modem_power_up_down_off_finish (self, res, &error)) {
-        g_prefix_error (&error, "Couldn't power down modem: ");
-        g_task_return_error (task, error);
-        g_object_unref (task);
-        return;
-    }
-
-    ctx->step++;
-    set_initial_eps_bearer_settings_step (task);
-}
-
-static void
-set_initial_eps_bearer_load_power_state_ready (MMIfaceModem *self,
-                                               GAsyncResult *res,
-                                               GTask        *task)
-{
-    SetInitialEpsBearerSettingsContext *ctx;
-    GError                             *error = NULL;
-
-    ctx = g_task_get_task_data (task);
-
-    ctx->power_state = load_power_state_finish (self, res, &error);
-    if (ctx->power_state == MM_MODEM_POWER_STATE_UNKNOWN) {
-        g_prefix_error (&error, "Couldn't load power state: ");
-        g_task_return_error (task, error);
-        g_object_unref (task);
-        return;
-    }
-
-    ctx->step++;
-    set_initial_eps_bearer_settings_step (task);
-}
-
-static void
 set_initial_eps_bearer_settings_step (GTask *task)
 {
     SetInitialEpsBearerSettingsContext *ctx;
     MMBroadbandModemQmi                *self;
-    const gchar*                        apn_name;
 
     self = g_task_get_source_object (task);
     ctx  = g_task_get_task_data (task);
@@ -11795,58 +11744,42 @@ set_initial_eps_bearer_settings_step (GTask *task)
             ctx->step++;
             /* fall through */
 
-        case SET_INITIAL_EPS_BEARER_SETTINGS_STEP_LOAD_POWER_STATE:
-            mm_obj_dbg (self, "querying current power state...");
-            load_power_state (MM_IFACE_MODEM (self),
-                              (GAsyncReadyCallback) set_initial_eps_bearer_load_power_state_ready,
-                              task);
-            return;
+        case SET_INITIAL_EPS_BEARER_SETTINGS_STEP_HANDLE_APP_PROFILE: {
+            const gchar* apn_name;
 
-        case SET_INITIAL_EPS_BEARER_SETTINGS_STEP_POWER_DOWN:
-            if (ctx->power_state == MM_MODEM_POWER_STATE_ON) {
-                mm_obj_dbg (self, "powering down before changing initial EPS bearer settings...");
-                modem_power_down (MM_IFACE_MODEM (self),
-                                  (GAsyncReadyCallback) set_initial_eps_bearer_power_down_ready,
-                                  task);
-                return;
-            }
-            ctx->step++;
-            /* fall through */
-
-        case SET_INITIAL_EPS_BEARER_SETTINGS_STEP_HANDLE_APP_PROFILE:
-            apn_name = mm_3gpp_profile_get_apn(ctx->profile);
+            apn_name = mm_3gpp_profile_get_apn (ctx->profile);
             ctx->update_lte_attach_pdn = FALSE;
-            mm_obj_info (self, "Set Initial eps settings: apn_name: %s", apn_name);
+            mm_obj_info (self, "request to set initial EPS settings with APN '%s'", apn_name);
             if (apn_name && g_strcmp0 (apn_name, "") != 0) {
                 ctx->setting_mm_owned_pdn = TRUE;
-                mm_3gpp_profile_set_profile_name(ctx->profile, MM_BROADBAND_MODEM_QMI_PROFILE_NAME);
+                mm_3gpp_profile_set_profile_name (ctx->profile, MM_BROADBAND_MODEM_QMI_PROFILE_NAME);
                 if (self->priv->mm_owned_attach_pdn) {
-                    mm_obj_info (self, "Overriding MM owned profile %d with APN: %s.",
-                        self->priv->default_attach_pdn, apn_name);
+                    mm_obj_info (self, "overriding MM owned profile %d with APN '%s'", self->priv->default_attach_pdn, apn_name);
                     ctx->step++;
                     /* fall through */
                 } else {
                     mm_obj_info (self, "creating a profile for initial EPS bearer settings...");
-                    mm_3gpp_profile_set_profile_id(ctx->profile, MM_3GPP_PROFILE_ID_UNKNOWN);
+                    mm_3gpp_profile_set_profile_id (ctx->profile, MM_3GPP_PROFILE_ID_UNKNOWN);
                     ctx->update_lte_attach_pdn = FALSE;
                     ctx->step++;
                     /* fall through */
                 }
             } else {
                 /* Note: Never store an empty APN on the mm_owned_profile_index, since the logic in iface-modem-3gpp
-                   will skip the reattach if the new settings are also empty, and we might get stuck with empty APN
-                   settings which have the wrong |ip_type|. */
-                mm_obj_info (self, "Empty APN name provided. Falling back to modem profile for Attach APN.");
+                 * will skip the reattach if the new settings are also empty, and we might get stuck with empty APN
+                 * settings which have the wrong |ip_type|. */
+                mm_obj_info (self, "empty APN name provided: falling back to modem profile for Attach APN");
                 ctx->setting_mm_owned_pdn = FALSE;
                 if (self->priv->mm_owned_attach_pdn) {
-                    mm_obj_info (self, "Deleting MM owned profile for initial EPS bearer settings...");
+                    mm_obj_info (self, "deleting MM owned profile for initial EPS bearer settings...");
                     set_initial_eps_bearer_delete_mm_profile (task);
                 } else {
-                    ctx->step = SET_INITIAL_EPS_BEARER_SETTINGS_STEP_POWER_UP;
+                    ctx->step = SET_INITIAL_EPS_BEARER_SETTINGS_STEP_LAST;
                     set_initial_eps_bearer_settings_step (task);
                 }
                 return;
             }
+        }
 
         case SET_INITIAL_EPS_BEARER_SETTINGS_STEP_MODIFY_PROFILE:
             mm_obj_dbg (self, "modifying initial EPS bearer settings profile...");
@@ -11862,21 +11795,11 @@ set_initial_eps_bearer_settings_step (GTask *task)
             ctx->step++;
             /* fall through */
 
-        case SET_INITIAL_EPS_BEARER_SETTINGS_STEP_POWER_UP:
-            if (ctx->power_state == MM_MODEM_POWER_STATE_ON) {
-                mm_obj_dbg (self, "powering up after changing initial EPS bearer settings...");
-                modem_power_up (MM_IFACE_MODEM (self),
-                                (GAsyncReadyCallback) set_initial_eps_bearer_power_up_ready,
-                                task);
-                return;
-            }
-            ctx->step++;
-            /* fall through */
-
-        case SET_INITIAL_EPS_BEARER_SETTINGS_STEP_LAST_SETTING:
+        case SET_INITIAL_EPS_BEARER_SETTINGS_STEP_LAST:
             g_task_return_boolean (task, TRUE);
             g_object_unref (task);
             return;
+
         default:
             g_assert_not_reached ();
     }

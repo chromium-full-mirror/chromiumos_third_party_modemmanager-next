@@ -3,7 +3,7 @@
 
 project(
   'ModemManager', 'c',
-  version: '1.23.7',
+  version: '1.23.8',
   license: 'GPL2',
   default_options: [
     'buildtype=debugoptimized',
@@ -303,7 +303,7 @@ enable_gtk_doc = get_option('gtk_doc')
 enable_plugins = not get_option('auto_features').disabled()
 
 plugins_shared_reqs = {
-  'fibocom': enable_mbim,
+  'fibocom': true,
   'foxconn': enable_mbim,
   'icera': true,
   'novatel': true,
@@ -313,13 +313,11 @@ plugins_shared_reqs = {
   'xmm': true,
 }
 
-
-fibocom_shared_reqs = ['xmm']
 dell_shared_reqs = ['novatel', 'sierra', 'telit', 'xmm']
 mtk_shared_reqs = []
 if enable_mbim
-  fibocom_shared_reqs += ['fibocom']
   dell_shared_reqs += ['foxconn']
+  # only the MBIM implementation in MTK needs the shared fibocom utils
   mtk_shared_reqs += ['fibocom']
 endif
 
@@ -330,7 +328,7 @@ plugins_options_reqs = {
   'cinterion': {'available': true, 'shared': []},
   'dell': {'available': true, 'shared': dell_shared_reqs},
   'dlink': {'available': true, 'shared': []},
-  'fibocom': {'available': true, 'shared': fibocom_shared_reqs},
+  'fibocom': {'available': true, 'shared': ['xmm', 'fibocom']},
   'foxconn': {'available': enable_mbim, 'shared': ['foxconn']},
   'generic': {'available': true, 'shared': []},
   'gosuncn': {'available': true, 'shared': []},
@@ -353,6 +351,7 @@ plugins_options_reqs = {
   'pantech': {'available': true, 'shared': []},
   'qcom-soc': {'available': enable_qmi, 'shared': []},
   'quectel': {'available': true, 'shared': []},
+  'rolling': {'available': true, 'shared': ['fibocom']},
   'samsung': {'available': true, 'shared': ['icera']},
   'sierra-legacy': {'available': true, 'shared': ['icera', 'sierra']},
   'sierra': {'available': true, 'shared': ['xmm']},

@@ -16,6 +16,8 @@
 #ifndef MM_SHARED_FIBOCOM_H
 #define MM_SHARED_FIBOCOM_H
 
+#include <config.h>
+
 #include <glib-object.h>
 #include <gio/gio.h>
 
@@ -23,7 +25,6 @@
 #include <libmm-glib.h>
 
 #include "mm-broadband-modem.h"
-#include "mm-iface-modem-3gpp.h"
 #include "mm-iface-modem.h"
 #include "mm-iface-modem-firmware.h"
 
@@ -35,12 +36,11 @@ struct _MMSharedFibocomInterface {
 
     /* Peek parent class of the object */
     MMBaseModemClass * (* peek_parent_class) (MMSharedFibocom *self);
-
-    /* Peek 3GPP interface of the parent class of the object */
-    MMIfaceModem3gppInterface * (* peek_parent_3gpp_interface) (MMSharedFibocom *self);
 };
 
 void mm_shared_fibocom_setup_ports (MMBroadbandModem *self);
+
+#if defined WITH_MBIM
 
 MMPort *mm_shared_fibocom_create_usbmisc_port (MMBaseModem *self,
                                                const gchar *name,
@@ -49,13 +49,7 @@ MMPort *mm_shared_fibocom_create_wwan_port    (MMBaseModem *self,
                                                const gchar *name,
                                                MMPortType   ptype);
 
-void     mm_shared_fibocom_set_initial_eps_bearer_settings        (MMIfaceModem3gpp    *self,
-                                                                   MMBearerProperties  *config,
-                                                                   GAsyncReadyCallback  callback,
-                                                                   gpointer             user_data);
-gboolean mm_shared_fibocom_set_initial_eps_bearer_settings_finish (MMIfaceModem3gpp    *self,
-                                                                   GAsyncResult        *res,
-                                                                   GError             **error);
+#endif
 
 void                      mm_shared_fibocom_firmware_load_update_settings        (MMIfaceModemFirmware  *self,
                                                                                   GAsyncReadyCallback    callback,
@@ -63,8 +57,5 @@ void                      mm_shared_fibocom_firmware_load_update_settings       
 MMFirmwareUpdateSettings *mm_shared_fibocom_firmware_load_update_settings_finish (MMIfaceModemFirmware  *self,
                                                                                   GAsyncResult          *res,
                                                                                   GError               **error);
-
-void mm_shared_fibocom_process_version_features (MMSharedFibocom *self,
-                                                 const gchar     *revision);
 
 #endif /* MM_SHARED_FIBOCOM_H */
