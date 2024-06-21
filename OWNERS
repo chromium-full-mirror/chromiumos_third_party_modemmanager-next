@@ -1,8 +1,2 @@
 set noparent
-ejcaruso@chromium.org
-pholla@chromium.org
-andrewlassalle@chromium.org
-madhavadas@google.com
-michamazur@google.com
-ujjwalpande@google.com
-aleksandermj@google.com
+include chromiumos/owners:v1:/cellular/OWNERS.modemmanager
