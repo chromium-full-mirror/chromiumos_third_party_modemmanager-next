@@ -1812,12 +1812,13 @@ mm_ublox_parse_urat_read_response (const gchar  *response,
         }
     }
 
-out:
-    if (allowed == MM_MODEM_MODE_NONE) {
+    if (!inner_error && allowed == MM_MODEM_MODE_NONE) {
         inner_error = g_error_new (MM_CORE_ERROR, MM_CORE_ERROR_FAILED,
                                    "Couldn't parse +URAT response: %s", response);
+        goto out;
     }
 
+out:
     if (inner_error) {
         g_propagate_error (error, inner_error);
         return FALSE;

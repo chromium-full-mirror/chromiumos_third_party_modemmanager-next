@@ -29,17 +29,17 @@ ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{.MM_USBIFNUM}=="02", SUBS
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{.MM_USBIFNUM}=="03", SUBSYSTEM=="tty", ENV{ID_MM_PORT_TYPE_AT_SECONDARY}="1"
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{.MM_USBIFNUM}=="04", ENV{ID_MM_PORT_IGNORE}="1"
 
-# Fibocom NL668-AM: ChromeOS specific configuration
-#  cdc-wdm0 (if #0): flagged as required control port
-#  ttyACM0 (if #2): managed by modemfwd (ignored in MM)
-ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{.MM_USBIFNUM}=="00", ENV{ID_MM_REQUIRED}="1"
-ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{.MM_USBIFNUM}=="02", SUBSYSTEM=="tty", ENV{ID_MM_PORT_IGNORE}="1"
-
 # Fibocom NL668 doesn't support AT over MBIM properly
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{ID_MM_FIBOCOM_AT_OVER_MBIM_DISABLED}="1"
 
 # Fibocom NL668 doesn't support multiplexing properly
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{ID_MM_MAX_MULTIPLEXED_LINKS}="0"
+
+# Fibocom NL668-AM: ChromeOS specific configuration
+#  cdc-wdm0 (if #0): flagged as required control port
+#  ttyACM0 (if #2): managed by modemfwd (ignored in MM)
+ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{.MM_USBIFNUM}=="00", ENV{ID_MM_REQUIRED}="1"
+ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{.MM_USBIFNUM}=="02", SUBSYSTEM=="tty", ENV{ID_MM_PORT_IGNORE}="1"
 
 # Fibocom FM150
 #  ttyUSB0 (if #0): QCDM port
@@ -57,7 +57,7 @@ ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="0104", ENV{.MM_USBIFNUM}=="03", ENV{
 #  ttyUSB2 (if #4): debug port (ignore)
 #  ttyUSB3 (if #5): debug port (ignore)
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="02", SUBSYSTEM=="tty", ENV{ID_MM_PORT_TYPE_AT_PRIMARY}="1"
-ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="03", SUBSYSTEM=="tty", ENV{ID_MM_PORT_TYPE_AT_SECONDARY}="1"
+ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="03", SUBSYSTEM=="tty", ENV{ID_MM_PORT_IGNORE}="1"
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="04", ENV{ID_MM_PORT_IGNORE}="1"
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="05", ENV{ID_MM_PORT_IGNORE}="1"
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="02", SUBSYSTEM=="tty", ENV{ID_MM_FIBOCOM_FASTBOOT}="1"
