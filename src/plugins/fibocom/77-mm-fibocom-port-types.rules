@@ -66,7 +66,6 @@ ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="02", SUBS
 #  cdc-wdm0 (if #0): flagged as required control port
 #  ttyUSB0 (if #2): ignored in MM
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="00", ENV{ID_MM_REQUIRED}="1"
-ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="02", SUBSYSTEM=="tty", ENV{ID_MM_PORT_IGNORE}="1"
 
 # Fibocom FM101-GL (ADB)
 #  ttyUSB0 (if #2): debug port (ignore)
