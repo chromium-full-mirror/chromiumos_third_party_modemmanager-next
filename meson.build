@@ -3,7 +3,7 @@
 
 project(
   'ModemManager', 'c',
-  version: '1.23.9',
+  version: '1.23.10',
   license: 'GPL2',
   default_options: [
     'buildtype=debugoptimized',
@@ -265,7 +265,7 @@ config_h.set('WITH_MBIM', enable_mbim)
 # QMI support (enabled by default)
 enable_qmi = get_option('qmi')
 if enable_qmi
-  qmi_glib_dep = dependency('qmi-glib', version: '>= 1.34.0')
+  qmi_glib_dep = dependency('qmi-glib', version: '>= 1.35.6')
 endif
 config_h.set('WITH_QMI', enable_qmi)
 
@@ -306,15 +306,17 @@ plugins_shared_reqs = {
   'fibocom': true,
   'foxconn': enable_mbim,
   'icera': true,
+  'mtk': true,
   'novatel': true,
   'option': true,
   'sierra': true,
   'telit': true,
   'xmm': true,
+  'quectel': true,
 }
 
 dell_shared_reqs = ['novatel', 'sierra', 'telit', 'xmm']
-mtk_shared_reqs = []
+mtk_shared_reqs = ['mtk']
 if enable_mbim
   dell_shared_reqs += ['foxconn']
   # only the MBIM implementation in MTK needs the shared fibocom utils
@@ -340,8 +342,9 @@ plugins_options_reqs = {
   'longcheer': {'available': true, 'shared': []},
   'mbm': {'available': true, 'shared': []},
   'motorola': {'available': true, 'shared': []},
-  'mtk-legacy': {'available': true, 'shared': []},
+  'mtk-legacy': {'available': true, 'shared': mtk_shared_reqs},
   'mtk': {'available': true, 'shared': mtk_shared_reqs},
+  'netprisma': {'available': true, 'shared': ['quectel']},
   'nokia': {'available': true, 'shared': []},
   'nokia-icera': {'available': true, 'shared': ['icera']},
   'novatel': {'available': true, 'shared': ['novatel']},
@@ -350,7 +353,7 @@ plugins_options_reqs = {
   'option-hso': {'available': true, 'shared': ['option']},
   'pantech': {'available': true, 'shared': []},
   'qcom-soc': {'available': enable_qmi, 'shared': []},
-  'quectel': {'available': true, 'shared': []},
+  'quectel': {'available': true, 'shared': ['quectel']},
   'rolling': {'available': true, 'shared': ['fibocom']},
   'samsung': {'available': true, 'shared': ['icera']},
   'sierra-legacy': {'available': true, 'shared': ['icera', 'sierra']},
