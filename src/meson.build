@@ -385,6 +385,7 @@ pkg.generate(
 
 # generic udev rules
 install_data(
+  '78-mm-chromiumos.rules',
   '80-mm-candidate.rules',
   install_dir: udev_rulesdir,
 )

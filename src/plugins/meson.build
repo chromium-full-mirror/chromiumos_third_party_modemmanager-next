@@ -694,9 +694,6 @@ endif
 
 # plugin: mtk
 if plugins_options['mtk']
-  test_udev_rules_dir_c_args = ['-DTESTUDEVRULESDIR_MTK="@0@"'.format(plugins_dir / 'mtk')]
-  plugins_test_udev_rules_dir_c_args += test_udev_rules_dir_c_args
-
   incs = plugins_incs + [mtk_inc]
   sources = files(
     'mtk/mm-plugin-mtk.c',
@@ -715,8 +712,6 @@ if plugins_options['mtk']
     'plugin': true,
     'module': {'sources': sources, 'include_directories': incs, 'c_args': '-DMM_MODULE_NAME="mtk"'},
   }}
-
-  plugins_udev_rules += files('mtk/77-mm-mtk-port-types.rules')
 endif
 
 # plugin: nokia

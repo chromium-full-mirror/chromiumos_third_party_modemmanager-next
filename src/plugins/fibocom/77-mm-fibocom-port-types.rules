@@ -14,13 +14,6 @@ SUBSYSTEMS=="usb", ATTRS{bInterfaceNumber}=="?*", ENV{.MM_USBIFNUM}="$attr{bInte
 #  ttyACM2 (if #6): AT port
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="0007", ENV{.MM_USBIFNUM}=="04", ENV{ID_MM_PORT_IGNORE}="1"
 
-# Fibocom L850-GL: ChromeOS specific configuration
-#  cdc-wdm0 (if #0): flagged as required control port
-#  ttyACM0 (if #2): managed by modemfwd (ignored in MM)
-#  ttyACM2 (if #6): managed by ModemManager
-ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="0007", ENV{.MM_USBIFNUM}=="00", ENV{ID_MM_REQUIRED}="1"
-ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="0007", ENV{.MM_USBIFNUM}=="02", ENV{ID_MM_PORT_IGNORE}="1"
-
 # Fibocom NL668-AM
 #  ttyACM0 (if #2): AT port
 #  ttyACM1 (if #3): AT port
@@ -34,12 +27,6 @@ ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{ID_MM_FIBOCOM_AT_OVER_MBI
 
 # Fibocom NL668 doesn't support multiplexing properly
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{ID_MM_MAX_MULTIPLEXED_LINKS}="0"
-
-# Fibocom NL668-AM: ChromeOS specific configuration
-#  cdc-wdm0 (if #0): flagged as required control port
-#  ttyACM0 (if #2): managed by modemfwd (ignored in MM)
-ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{.MM_USBIFNUM}=="00", ENV{ID_MM_REQUIRED}="1"
-ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a0", ENV{.MM_USBIFNUM}=="02", SUBSYSTEM=="tty", ENV{ID_MM_PORT_IGNORE}="1"
 
 # Fibocom FM150
 #  ttyUSB0 (if #0): QCDM port
@@ -61,11 +48,6 @@ ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="03", SUBS
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="04", ENV{ID_MM_PORT_IGNORE}="1"
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="05", ENV{ID_MM_PORT_IGNORE}="1"
 ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="02", SUBSYSTEM=="tty", ENV{ID_MM_FIBOCOM_FASTBOOT}="1"
-
-# Fibocom FM101-GL (MBIM): ChromeOS specific configuration
-#  cdc-wdm0 (if #0): flagged as required control port
-#  ttyUSB0 (if #2): ignored in MM
-ATTRS{idVendor}=="2cb7", ATTRS{idProduct}=="01a2", ENV{.MM_USBIFNUM}=="00", ENV{ID_MM_REQUIRED}="1"
 
 # Fibocom FM101-GL (ADB)
 #  ttyUSB0 (if #2): debug port (ignore)
