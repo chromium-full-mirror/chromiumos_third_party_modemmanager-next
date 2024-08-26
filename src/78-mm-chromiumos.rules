@@ -3,6 +3,7 @@ ACTION!="add|change|move|bind", GOTO="mm_chromiumos_end"
 SUBSYSTEMS=="usb", ATTRS{idVendor}=="2cb7", GOTO="mm_chromiumos_fibocom"
 SUBSYSTEMS=="usb", ATTRS{idVendor}=="33f8", GOTO="mm_chromiumos_rolling"
 SUBSYSTEMS=="usb", ATTRS{idVendor}=="2c7c", GOTO="mm_chromiumos_quectel"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="3731", GOTO="mm_chromiumos_netprisma"
 SUBSYSTEMS=="pci", SUBSYSTEM=="wwan", ATTRS{vendor}=="0x14c3", GOTO="mm_chromiumos_mtk"
 GOTO="mm_chromiumos_end"
 
@@ -50,6 +51,15 @@ SUBSYSTEMS=="usb", ATTRS{bInterfaceNumber}=="?*", ENV{.MM_USBIFNUM}="$attr{bInte
 # Quectel EM060
 #  cdc-wdm0 (if #0): flagged as required control port
 ATTRS{idVendor}=="2c7c", ATTRS{idProduct}=="0128", ENV{.MM_USBIFNUM}=="00", ENV{ID_MM_REQUIRED}="1"
+
+GOTO="mm_chromiumos_end"
+#-------------------------------------------------------------------------------
+LABEL="mm_chromiumos_netprisma"
+SUBSYSTEMS=="usb", ATTRS{bInterfaceNumber}=="?*", ENV{.MM_USBIFNUM}="$attr{bInterfaceNumber}"
+
+# Netprisma LCUK54-WWD
+#  cdc-wdm0 (if #0): flagged as required control port
+ATTRS{idVendor}=="3731", ATTRS{idProduct}=="0100", ENV{.MM_USBIFNUM}=="00", ENV{ID_MM_REQUIRED}="1"
 
 GOTO="mm_chromiumos_end"
 #-------------------------------------------------------------------------------
