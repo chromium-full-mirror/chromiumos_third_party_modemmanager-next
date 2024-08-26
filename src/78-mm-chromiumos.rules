@@ -66,7 +66,9 @@ GOTO="mm_chromiumos_end"
 LABEL="mm_chromiumos_mtk"
 
 # Fibocom FM350
-#  mbim0at0: AT port, ignored.
+#  wwan0mbim0: MBIM port, flagged as required control port
+#  wwan0at0: AT port, ignored as no AT specific needs
+ATTRS{vendor}=="0x14c3", ATTRS{device}=="0x4d75", ATTR{type}=="MBIM", ENV{ID_MM_REQUIRED}="1"
 ATTRS{vendor}=="0x14c3", ATTRS{device}=="0x4d75", ATTR{type}=="AT", ENV{ID_MM_PORT_IGNORE}="1"
 
 LABEL="mm_chromiumos_end"
