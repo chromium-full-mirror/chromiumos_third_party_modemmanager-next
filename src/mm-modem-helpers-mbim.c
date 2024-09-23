@@ -457,6 +457,18 @@ mm_bearer_allowed_auth_to_mbim_auth_protocol (MMBearerAllowedAuth   bearer_auth,
     return MBIM_AUTH_PROTOCOL_NONE;
 }
 
+gchar *
+mm_mbim_auth_protocol_get_printable (MbimAuthProtocol auth_protocol)
+{
+    const gchar *str;
+
+    str = mbim_auth_protocol_get_string (auth_protocol);
+    if (str)
+        return g_strdup (str);
+
+    return g_strdup_printf ("unknown (0x%x)", auth_protocol);
+}
+
 /*****************************************************************************/
 
 MMBearerApnType
@@ -617,6 +629,18 @@ mm_bearer_ip_family_to_mbim_context_ip_type (MMBearerIpFamily   ip_family,
     return MBIM_CONTEXT_IP_TYPE_DEFAULT;
 }
 
+gchar *
+mm_mbim_context_ip_type_get_printable (MbimContextIpType ip_type)
+{
+    const gchar *str;
+
+    str = mbim_context_ip_type_get_string (ip_type);
+    if (str)
+        return g_strdup (str);
+
+    return g_strdup_printf ("unknown (0x%x)", ip_type);
+}
+
 /*****************************************************************************/
 
 gboolean
@@ -747,7 +771,6 @@ mm_boolean_from_mbim_context_state (MbimContextState   value,
                      "Unsupported context state value: 0x%x", value);
         return FALSE;
     }
-
 }
 
 MbimContextState
