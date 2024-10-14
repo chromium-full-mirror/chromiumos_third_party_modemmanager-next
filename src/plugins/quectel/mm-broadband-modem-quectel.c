@@ -11,6 +11,7 @@
  * GNU General Public License for more details:
  *
  * Copyright (C) 2018-2020 Aleksander Morgado <aleksander@aleksander.es>
+ * Copyright (C) 2024 JUCR GmbH
  */
 
 #include <config.h>
@@ -21,6 +22,7 @@
 #include "mm-iface-modem-location.h"
 #include "mm-iface-modem-time.h"
 #include "mm-shared-quectel.h"
+#include "mm-base-modem-at.h"
 
 static void iface_modem_init          (MMIfaceModemInterface         *iface);
 static void iface_modem_firmware_init (MMIfaceModemFirmwareInterface *iface);
@@ -37,6 +39,120 @@ G_DEFINE_TYPE_EXTENDED (MMBroadbandModemQuectel, mm_broadband_modem_quectel, MM_
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM_LOCATION, iface_modem_location_init)
                         G_IMPLEMENT_INTERFACE (MM_TYPE_IFACE_MODEM_TIME, iface_modem_time_init)
                         G_IMPLEMENT_INTERFACE (MM_TYPE_SHARED_QUECTEL, shared_quectel_init))
+
+/*****************************************************************************/
+/* Power state loading (Modem interface) */
+
+static MMModemPowerState
+load_power_state_finish (MMIfaceModem  *self,
+                         GAsyncResult  *res,
+                         GError       **error)
+{
+    MMModemPowerState  state = MM_MODEM_POWER_STATE_UNKNOWN;
+    guint              cfun_state = 0;
+    const gchar       *response;
+
+    response = mm_base_modem_at_command_finish (MM_BASE_MODEM (self), res, error);
+    if (!response)
+        return MM_MODEM_POWER_STATE_UNKNOWN;
+
+    if (!mm_3gpp_parse_cfun_query_response (response, &cfun_state, error))
+        return MM_MODEM_POWER_STATE_UNKNOWN;
+
+    switch (cfun_state) {
+    case 0:
+        state = MM_MODEM_POWER_STATE_OFF;
+        break;
+    case 1:
+        state = MM_MODEM_POWER_STATE_ON;
+        break;
+    case 4:
+        state = MM_MODEM_POWER_STATE_LOW;
+        break;
+    /* Some modems support the following (ASR chipsets at least) */
+    case 3: /* Disable RX */
+    case 5: /* Disable (U)SIM */
+        /* We'll just call these low-power... */
+        state = MM_MODEM_POWER_STATE_LOW;
+        break;
+    default:
+        g_set_error (error, MM_CORE_ERROR, MM_CORE_ERROR_FAILED,
+                     "Unknown +CFUN pòwer state: '%u'", state);
+        return MM_MODEM_POWER_STATE_UNKNOWN;
+    }
+
+    return state;
+}
+
+static void
+load_power_state (MMIfaceModem        *self,
+                  GAsyncReadyCallback  callback,
+                  gpointer             user_data)
+{
+    mm_base_modem_at_command (MM_BASE_MODEM (self),
+                              "+CFUN?",
+                              3,
+                              FALSE,
+                              callback,
+                              user_data);
+}
+
+/*****************************************************************************/
+/* Modem power up/down/off (Modem interface) */
+
+static gboolean
+common_modem_power_operation_finish (MMIfaceModem  *self,
+                                     GAsyncResult  *res,
+                                     GError       **error)
+{
+    return !!mm_base_modem_at_command_finish (MM_BASE_MODEM (self), res, error);
+}
+
+static void
+common_modem_power_operation (MMBroadbandModemQuectel  *self,
+                              const gchar              *command,
+                              GAsyncReadyCallback       callback,
+                              gpointer                  user_data)
+{
+    mm_base_modem_at_command (MM_BASE_MODEM (self),
+                              command,
+                              30,
+                              FALSE,
+                              callback,
+                              user_data);
+}
+
+static void
+modem_reset (MMIfaceModem        *self,
+             GAsyncReadyCallback  callback,
+             gpointer             user_data)
+{
+    common_modem_power_operation (MM_BROADBAND_MODEM_QUECTEL (self), "+CFUN=1,1", callback, user_data);
+}
+
+static void
+modem_power_off (MMIfaceModem        *self,
+                 GAsyncReadyCallback  callback,
+                 gpointer             user_data)
+{
+    common_modem_power_operation (MM_BROADBAND_MODEM_QUECTEL (self), "+QPOWD=1", callback, user_data);
+}
+
+static void
+modem_power_down (MMIfaceModem        *self,
+                  GAsyncReadyCallback  callback,
+                  gpointer             user_data)
+{
+    common_modem_power_operation (MM_BROADBAND_MODEM_QUECTEL (self), "+CFUN=4", callback, user_data);
+}
+
+static void
+modem_power_up (MMIfaceModem        *self,
+                GAsyncReadyCallback  callback,
+                gpointer             user_data)
+{
+    common_modem_power_operation (MM_BROADBAND_MODEM_QUECTEL (self), "+CFUN=1", callback, user_data);
+}
 
 /*****************************************************************************/
 
@@ -75,6 +191,16 @@ iface_modem_init (MMIfaceModemInterface *iface)
     iface->setup_sim_hot_swap = mm_shared_quectel_setup_sim_hot_swap;
     iface->setup_sim_hot_swap_finish = mm_shared_quectel_setup_sim_hot_swap_finish;
     iface->cleanup_sim_hot_swap = mm_shared_quectel_cleanup_sim_hot_swap;
+    iface->load_power_state        = load_power_state;
+    iface->load_power_state_finish = load_power_state_finish;
+    iface->modem_power_up        = modem_power_up;
+    iface->modem_power_up_finish = common_modem_power_operation_finish;
+    iface->modem_power_down        = modem_power_down;
+    iface->modem_power_down_finish = common_modem_power_operation_finish;
+    iface->modem_power_off        = modem_power_off;
+    iface->modem_power_off_finish = common_modem_power_operation_finish;
+    iface->reset        = modem_reset;
+    iface->reset_finish = common_modem_power_operation_finish;
 }
 
 static void

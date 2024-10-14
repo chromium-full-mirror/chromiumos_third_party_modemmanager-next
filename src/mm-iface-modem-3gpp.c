@@ -1221,6 +1221,7 @@ typedef struct {
     HandleSetInitialEpsBearerSettingsStep  step;
     MmGdbusModem3gpp                      *skeleton;
     GDBusMethodInvocation                 *invocation;
+    gssize                                 operation_id;
     MMIfaceModem3gpp                      *self;
     GVariant                              *dictionary;
     MMBearerProperties                    *config;
@@ -1231,6 +1232,9 @@ typedef struct {
 static void
 handle_set_initial_eps_bearer_settings_context_free (HandleSetInitialEpsBearerSettingsContext *ctx)
 {
+    if (ctx->operation_id >= 0)
+        mm_base_modem_operation_unlock (MM_BASE_MODEM (ctx->self), ctx->operation_id);
+
     g_assert (!ctx->saved_error);
     g_clear_object (&ctx->config);
     g_variant_unref (ctx->dictionary);
@@ -1424,7 +1428,8 @@ set_initial_eps_bearer_settings_auth_ready (MMBaseModem                         
     GVariant                      *old_dictionary;
     g_autoptr(MMBearerProperties)  old_config = NULL;
 
-    if (!mm_base_modem_authorize_finish (self, res, &error)) {
+    ctx->operation_id = mm_base_modem_authorize_and_operation_lock_finish (self, res, &error);
+    if (ctx->operation_id < 0) {
         mm_dbus_method_invocation_take_error (ctx->invocation, error);
         handle_set_initial_eps_bearer_settings_context_free (ctx);
         return;
@@ -1481,12 +1486,15 @@ handle_set_initial_eps_bearer_settings (MmGdbusModem3gpp      *skeleton,
     ctx->self       = g_object_ref (self);
     ctx->dictionary = g_variant_ref (dictionary);
     ctx->previous_power_state = MM_MODEM_POWER_STATE_UNKNOWN;
+    ctx->operation_id = -1;
 
-    mm_base_modem_authorize (MM_BASE_MODEM (self),
-                             invocation,
-                             MM_AUTHORIZATION_DEVICE_CONTROL,
-                             (GAsyncReadyCallback)set_initial_eps_bearer_settings_auth_ready,
-                             ctx);
+    mm_base_modem_authorize_and_operation_lock (MM_BASE_MODEM (self),
+                                                invocation,
+                                                MM_AUTHORIZATION_DEVICE_CONTROL,
+                                                MM_BASE_MODEM_OPERATION_PRIORITY_DEFAULT,
+                                                "set-initial-eps-bearer-settings",
+                                                (GAsyncReadyCallback)set_initial_eps_bearer_settings_auth_ready,
+                                                ctx);
     return TRUE;
 }
 
@@ -1803,6 +1811,7 @@ handle_set_packet_service_state (MmGdbusModem3gpp              *skeleton,
 typedef struct {
     MmGdbusModem3gpp           *skeleton;
     GDBusMethodInvocation      *invocation;
+    gssize                      operation_id;
     MMIfaceModem3gpp           *self;
     GVariant                   *dictionary;
     MMNr5gRegistrationSettings *settings;
@@ -1811,6 +1820,9 @@ typedef struct {
 static void
 handle_set_nr5g_registration_settings_context_free (HandleSetNr5gRegistrationSettingsContext *ctx)
 {
+    if (ctx->operation_id >= 0)
+        mm_base_modem_operation_unlock (MM_BASE_MODEM (ctx->self), ctx->operation_id);
+
     g_clear_object (&ctx->settings);
     g_variant_unref (ctx->dictionary);
     g_object_unref (ctx->skeleton);
@@ -1891,7 +1903,8 @@ set_nr5g_registration_settings_auth_ready (MMBaseModem                          
     MMModem3gppDrxCycle                    new_drx_cycle;
     MMModem3gppMicoMode                    new_mico_mode;
 
-    if (!mm_base_modem_authorize_finish (self, res, &error)) {
+    ctx->operation_id = mm_base_modem_authorize_and_operation_lock_finish (self, res, &error);
+    if (ctx->operation_id < 0) {
         mm_dbus_method_invocation_take_error (ctx->invocation, error);
         handle_set_nr5g_registration_settings_context_free (ctx);
         return;
@@ -1964,12 +1977,15 @@ handle_set_nr5g_registration_settings (MmGdbusModem3gpp      *skeleton,
     ctx->invocation = g_object_ref (invocation);
     ctx->self       = g_object_ref (self);
     ctx->dictionary = g_variant_ref (dictionary);
+    ctx->operation_id = -1;
 
-    mm_base_modem_authorize (MM_BASE_MODEM (self),
-                             invocation,
-                             MM_AUTHORIZATION_DEVICE_CONTROL,
-                             (GAsyncReadyCallback)set_nr5g_registration_settings_auth_ready,
-                             ctx);
+    mm_base_modem_authorize_and_operation_lock (MM_BASE_MODEM (self),
+                                                invocation,
+                                                MM_AUTHORIZATION_DEVICE_CONTROL,
+                                                MM_BASE_MODEM_OPERATION_PRIORITY_DEFAULT,
+                                                "set-nr5g-registration-settings",
+                                                (GAsyncReadyCallback)set_nr5g_registration_settings_auth_ready,
+                                                ctx);
     return TRUE;
 }
 

@@ -5329,6 +5329,56 @@ mm_sim_parse_cpol_test_response (const gchar  *response,
     return TRUE;
 }
 
+gchar *
+mm_sim_convert_spn_to_utf8 (const guint8  *bin,
+                            gsize          binlen,
+                            GError       **error)
+{
+    g_autoptr(GByteArray) bin_array = NULL;
+
+    /* Remove the FF filler at the end */
+    while (binlen > 1 && bin[binlen - 1] == 0xff)
+        binlen--;
+    if (binlen <= 1) {
+        g_set_error (error, MM_CORE_ERROR, MM_CORE_ERROR_FAILED,
+                     "SIM returned empty response");
+        return NULL;
+    }
+
+    /* Setup as bytearray.
+     * First byte is metadata; remainder is GSM-7 unpacked into octets; convert to UTF8 */
+    bin_array = g_byte_array_sized_new (binlen - 1);
+    g_byte_array_append (bin_array, bin + 1, binlen - 1);
+
+    return mm_modem_charset_bytearray_to_utf8 (bin_array, MM_MODEM_CHARSET_GSM, FALSE, error);
+}
+
+guint
+mm_sim_validate_mnc_length (const guint8  *bin,
+                            gsize          binlen,
+                            GError       **error)
+{
+    guint mnc_len;
+
+    if (binlen < 4) {
+        g_set_error (error, MM_CORE_ERROR, MM_CORE_ERROR_FAILED,
+                     "SIM returned too short response of length %lu (should be 4)",
+                     binlen);
+        return 0;
+    }
+
+    /* MNC length is byte 4 of this SIM file */
+    mnc_len = bin[3];
+    if (mnc_len != 2 && mnc_len != 3) {
+        g_set_error (error, MM_CORE_ERROR, MM_CORE_ERROR_FAILED,
+                     "SIM returned invalid MNC length %u (should be either 2 or 3)",
+                     mnc_len);
+        return 0;
+    }
+
+    return mnc_len;
+}
+
 #define EID_BYTE_LENGTH 16
 
 gchar *
@@ -5338,4 +5388,21 @@ mm_decode_eid (const gchar *eid, gsize eid_len)
         return NULL;
 
     return mm_bcd_to_string ((const guint8 *) eid, eid_len, FALSE /* low_nybble_first */);
+}
+
+/*****************************************************************************/
+
+guint
+mm_string_uint_map_lookup (const MMStringUintMap *map,
+                           const gsize            map_size,
+                           const gchar           *str,
+                           const guint            default_value)
+{
+    guint i;
+
+    for (i = 0; i < map_size; i++) {
+        if (g_str_equal (str, map[i].str))
+            return map[i].val;
+    }
+    return default_value;
 }

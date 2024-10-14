@@ -348,8 +348,9 @@ unexport_modem (MMDevice *self)
 static void
 export_modem (MMDevice *self)
 {
-    GDBusConnection *connection = NULL;
-    gchar           *path;
+    g_autoptr(GDBusConnection) connection = NULL;
+    g_autofree gchar *existing_path = NULL;
+    g_autofree gchar *path = NULL;
 
     g_assert (MM_IS_BASE_MODEM (self->priv->modem));
     g_assert (G_IS_DBUS_OBJECT_MANAGER (self->priv->object_manager));
@@ -360,12 +361,20 @@ export_modem (MMDevice *self)
         return;
     }
 
+    /* Don't export if we've aborted initialization */
+    g_object_get (self->priv->object_manager,
+                  "connection", &connection,
+                  NULL);
+    if (!connection) {
+        mm_obj_dbg (self, "exporting aborted as there is no bus connection");
+        return;
+    }
+
     /* Don't export already exported modems */
     g_object_get (self->priv->modem,
-                  "g-object-path", &path,
+                  "g-object-path", &existing_path,
                   NULL);
-    if (path) {
-        g_free (path);
+    if (existing_path) {
         mm_obj_dbg (self, "modem already exported");
         return;
     }
@@ -373,9 +382,6 @@ export_modem (MMDevice *self)
     /* No outstanding port tasks, so if the modem is valid we can export it */
 
     path = g_strdup_printf (MM_DBUS_MODEM_PREFIX "/%d", mm_base_modem_get_dbus_id (self->priv->modem));
-    g_object_get (self->priv->object_manager,
-                  "connection", &connection,
-                  NULL);
     g_object_set (self->priv->modem,
                   "g-object-path", path,
                   MM_BASE_MODEM_CONNECTION, connection,
@@ -395,8 +401,6 @@ export_modem (MMDevice *self)
                     (mm_base_modem_get_subsystem_vendor_id (self->priv->modem) & 0xFFFF));
     if (self->priv->virtual)
         mm_obj_dbg (self, "    virtual");
-
-    g_free (path);
 }
 
 /*****************************************************************************/
@@ -437,6 +441,7 @@ mm_device_initialize_modem (MMDevice *self)
 
     mm_obj_dbg (self, "modem initializing...");
     mm_base_modem_initialize (modem,
+                              MM_BASE_MODEM_OPERATION_LOCK_REQUIRED,
                               (GAsyncReadyCallback)initialize_ready,
                               g_object_ref (self));
 }
@@ -747,8 +752,12 @@ mm_device_inhibit (MMDevice            *self,
     g_assert (!self->priv->inhibited);
     self->priv->inhibited = TRUE;
 
-    /* Make sure modem is disabled while inhibited */
+    /* Make sure modem is disabled while inhibited. This operation requests
+     * an exclusive lock marked as override, so the modem object will not
+     * allow any additional lock request any more. */
     mm_base_modem_disable (self->priv->modem,
+                           MM_BASE_MODEM_OPERATION_LOCK_REQUIRED,
+                           MM_BASE_MODEM_OPERATION_PRIORITY_OVERRIDE,
                            (GAsyncReadyCallback)inhibit_disable_ready,
                            task);
 }

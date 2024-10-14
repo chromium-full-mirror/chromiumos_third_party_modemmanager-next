@@ -571,6 +571,15 @@ gboolean mm_sim_parse_cpol_test_response (const gchar  *response,
                                           guint        *out_max_index,
                                           GError      **error);
 
+/* Parse operator name and mnc length */
+gchar *mm_sim_convert_spn_to_utf8 (const guint8  *bin,
+                                   gsize          len,
+                                   GError       **error);
+
+guint mm_sim_validate_mnc_length (const guint8  *bin,
+                                  gsize          len,
+                                  GError       **error);
+
 /*****************************************************************************/
 
 /* Useful when clamp-ing an unsigned integer with implicit low limit set to 0,
@@ -592,5 +601,16 @@ gboolean mm_sim_parse_cpol_test_response (const gchar  *response,
 
 /* Helper function to decode eid read from esim */
 gchar *mm_decode_eid (const gchar *eid, gsize eid_len);
+
+typedef struct {
+    const gchar *str;
+    const guint  val;
+} MMStringUintMap;
+
+/* Helper to look up string value in a map and return corresponding guint */
+guint mm_string_uint_map_lookup (const MMStringUintMap *map,
+                                 const gsize            map_size,
+                                 const gchar           *str,
+                                 const guint            default_value);
 
 #endif  /* MM_MODEM_HELPERS_H */

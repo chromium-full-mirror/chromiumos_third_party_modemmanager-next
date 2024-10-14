@@ -1245,7 +1245,7 @@ typedef enum { /*< underscore_name=mm_bearer_ip_family >*/
     MM_BEARER_IP_FAMILY_IPV6    = 1 << 1,
     MM_BEARER_IP_FAMILY_IPV4V6  = 1 << 2,
     MM_BEARER_IP_FAMILY_NON_IP  = 1 << 3,
-    MM_BEARER_IP_FAMILY_ANY     = 0xFFFFFFF7
+    MM_BEARER_IP_FAMILY_ANY     = 0xFFFFFFFF
 } MMBearerIpFamily;
 
 /**
@@ -1670,19 +1670,21 @@ typedef enum { /*< underscore_name=mm_call_direction >*/
  * @MM_MODEM_FIRMWARE_UPDATE_METHOD_FIREHOSE: Device supports Firehose based update. Since 1.18.
  * @MM_MODEM_FIRMWARE_UPDATE_METHOD_SAHARA: Device supports Sahara protocol. Usually used in combination with Firehose. Since 1.20.
  * @MM_MODEM_FIRMWARE_UPDATE_METHOD_DFOTA: Device supports Quectel DFOTA based update. Since 1.24.
+ * @MM_MODEM_FIRMWARE_UPDATE_METHOD_CINTERION_FDL: Device supports AT^SFDL based update. Since 1.24.
  *
  * Type of firmware update method supported by the module.
  *
  * Since: 1.10
  */
 typedef enum { /*< underscore_name=mm_modem_firmware_update_method >*/
-    MM_MODEM_FIRMWARE_UPDATE_METHOD_NONE     = 0,
-    MM_MODEM_FIRMWARE_UPDATE_METHOD_FASTBOOT = 1 << 0,
-    MM_MODEM_FIRMWARE_UPDATE_METHOD_QMI_PDC  = 1 << 1,
-    MM_MODEM_FIRMWARE_UPDATE_METHOD_MBIM_QDU = 1 << 2,
-    MM_MODEM_FIRMWARE_UPDATE_METHOD_FIREHOSE = 1 << 3,
-    MM_MODEM_FIRMWARE_UPDATE_METHOD_SAHARA   = 1 << 4,
-    MM_MODEM_FIRMWARE_UPDATE_METHOD_DFOTA    = 1 << 5,
+    MM_MODEM_FIRMWARE_UPDATE_METHOD_NONE          = 0,
+    MM_MODEM_FIRMWARE_UPDATE_METHOD_FASTBOOT      = 1 << 0,
+    MM_MODEM_FIRMWARE_UPDATE_METHOD_QMI_PDC       = 1 << 1,
+    MM_MODEM_FIRMWARE_UPDATE_METHOD_MBIM_QDU      = 1 << 2,
+    MM_MODEM_FIRMWARE_UPDATE_METHOD_FIREHOSE      = 1 << 3,
+    MM_MODEM_FIRMWARE_UPDATE_METHOD_SAHARA        = 1 << 4,
+    MM_MODEM_FIRMWARE_UPDATE_METHOD_DFOTA         = 1 << 5,
+    MM_MODEM_FIRMWARE_UPDATE_METHOD_CINTERION_FDL = 1 << 6,
 } MMModemFirmwareUpdateMethod;
 
 /**
@@ -1987,7 +1989,6 @@ typedef enum { /*< underscore_name=mm_serving_cell_type >*/
  * @MM_NETWORK_ERROR_UNKNOWN_PDP_ADDRESS_OR_TYPE: Unknown PDP address or PDP type.
  * @MM_NETWORK_ERROR_USER_AUTHENTICATION_FAILED: User authentication failed.
  * @MM_NETWORK_ERROR_ACTIVATION_REJECTED_BY_GGSN_OR_GW: Activation rejected by GGSN, Serving GW or PDN GW.
- * @MM_NETWORK_ERROR_ACTIVATION_REJECTED_UNSPECIFIED: Activation rejected, unspecified.
  * @MM_NETWORK_ERROR_SERVICE_OPTION_NOT_SUPPORTED: Service option not supported.
  * @MM_NETWORK_ERROR_REQUESTED_SERVICE_OPTION_NOT_SUBSCRIBED: Requested service option not subscribed.
  * @MM_NETWORK_ERROR_SERVICE_OPTION_TEMPORARILY_OUT_OF_ORDER: Service option temporarily out of order.
