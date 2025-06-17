@@ -855,7 +855,7 @@ mm_plugin_supports_port (MMPlugin            *self,
     }
 
     /* If a modem is already available and the plugin says that only one AT port is
-     * expected, check if we alredy got the single AT port. And if so, we know this
+     * expected, check if we already got the single AT port. And if so, we know this
      * port being probed won't be AT. */
     if (self->priv->single_at &&
         mm_port_probe_list_has_at_port (mm_device_peek_port_probe_list (device)) &&
@@ -956,6 +956,7 @@ mm_plugin_create_modem (MMPlugin  *self,
                                                       mm_device_get_vendor (device),
                                                       mm_device_get_product (device),
                                                       mm_device_get_subsystem_vendor (device),
+                                                      mm_device_get_subsystem_device (device),
                                                       port_probes,
                                                       error);
     if (!modem)

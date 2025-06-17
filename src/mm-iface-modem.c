@@ -160,6 +160,8 @@ check_basic_sim_details_ready (MMIfaceModem *self,
     g_autofree gchar     *current_iccid = NULL;
     g_autofree gchar     *current_imsi = NULL;
     gboolean              sim_inserted;
+    gboolean              iccid_changed;
+    gboolean              imsi_changed;
 
     if (!MM_IFACE_MODEM_GET_IFACE (self)->check_basic_sim_details_finish (
         self, res, &sim_inserted, &current_iccid, &current_imsi, &error)) {
@@ -175,6 +177,9 @@ check_basic_sim_details_ready (MMIfaceModem *self,
         old_imsi = mm_gdbus_sim_get_imsi (MM_GDBUS_SIM (sim));
     }
 
+    iccid_changed = (g_strcmp0 (current_iccid, old_iccid) != 0);
+    imsi_changed = (g_strcmp0 (current_imsi, old_imsi) != 0);
+
     if (!sim && !sim_inserted) {
         mm_obj_info (self, "No SIM inserted before and after");
     } else if (sim && !sim_inserted) {
@@ -183,8 +188,9 @@ check_basic_sim_details_ready (MMIfaceModem *self,
     } else if (!sim && sim_inserted) {
         mm_obj_info (self, "SIM inserted");
         mm_iface_modem_process_sim_event (self);
-    } else if ((g_strcmp0 (current_iccid, old_iccid) != 0) ||
-               (g_strcmp0 (current_imsi, old_imsi) != 0)) {
+    } else if (iccid_changed || imsi_changed) {
+        MMModemState state = MM_MODEM_STATE_UNKNOWN;
+
         mm_obj_info (self, "new SIM detected");
         mm_obj_info (self, "ICCID: %s -> %s",
                      mm_log_str_personal_info (old_iccid),
@@ -192,7 +198,15 @@ check_basic_sim_details_ready (MMIfaceModem *self,
         mm_obj_info (self, "IMSI: %s -> %s",
                      mm_log_str_personal_info (old_imsi),
                      mm_log_str_personal_info (current_imsi));
-        mm_iface_modem_process_sim_event (self);
+
+        g_object_get (self,
+                      MM_IFACE_MODEM_STATE, &state,
+                      NULL);
+        if (state == MM_MODEM_STATE_LOCKED && !old_imsi && imsi_changed) {
+            /* Don't treat SIM unlocks as SIM swaps */
+        } else {
+            mm_iface_modem_process_sim_event (self);
+        }
     } else {
         mm_obj_info (self, "SIM not changed. ICCID: %s, IMSI: %s",
                      mm_log_str_personal_info (current_iccid),
@@ -2608,7 +2622,7 @@ handle_reset_auth_ready (MMBaseModem        *self,
         return;
     }
 
-    /* If reseting is not implemented, report an error */
+    /* If resetting is not implemented, report an error */
     if (!MM_IFACE_MODEM_GET_IFACE (self)->reset || !MM_IFACE_MODEM_GET_IFACE (self)->reset_finish) {
         mm_dbus_method_invocation_return_error_literal (ctx->invocation, MM_CORE_ERROR, MM_CORE_ERROR_UNSUPPORTED,
                                                         "Operation not supported");
@@ -2701,7 +2715,7 @@ handle_factory_reset_auth_ready (MMBaseModem               *self,
         return;
     }
 
-    /* If reseting is not implemented, report an error */
+    /* If resetting is not implemented, report an error */
     if (!MM_IFACE_MODEM_GET_IFACE (self)->factory_reset || !MM_IFACE_MODEM_GET_IFACE (self)->factory_reset_finish) {
         mm_dbus_method_invocation_return_error_literal (ctx->invocation, MM_CORE_ERROR, MM_CORE_ERROR_UNSUPPORTED,
                                                         "Operation not supported");
@@ -6678,6 +6692,29 @@ mm_iface_modem_get_carrier_config (MMIfaceModem  *self,
     if (revision)
         *revision = mm_gdbus_modem_get_carrier_configuration_revision (skeleton);
     g_object_unref (skeleton);
+    return TRUE;
+}
+
+/*****************************************************************************/
+
+gboolean
+mm_iface_modem_get_current_modes (MMIfaceModem *self,
+                                  MMModemMode  *allowed,
+                                  MMModemMode  *preferred)
+{
+    g_autoptr(MmGdbusModemSkeleton) skeleton = NULL;
+
+    g_object_get (self,
+                  MM_IFACE_MODEM_DBUS_SKELETON, &skeleton,
+                  NULL);
+    if (!skeleton)
+        return FALSE;
+
+    g_variant_get (mm_gdbus_modem_get_current_modes (MM_GDBUS_MODEM (skeleton)),
+                   "(uu)",
+                   allowed,
+                   preferred);
+
     return TRUE;
 }
 

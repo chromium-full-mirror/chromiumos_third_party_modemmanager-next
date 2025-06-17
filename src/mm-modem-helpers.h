@@ -142,6 +142,7 @@ GRegex    *mm_3gpp_cgev_regex_get (void);
 GRegex    *mm_3gpp_cusd_regex_get (void);
 GRegex    *mm_3gpp_cmti_regex_get (void);
 GRegex    *mm_3gpp_cds_regex_get (void);
+GRegex    *mm_3gpp_cbm_regex_get (void);
 
 /* AT+WS46=? response parser: returns array of MMModemMode values */
 GArray *mm_3gpp_parse_ws46_test_response (const gchar  *response,
@@ -417,6 +418,8 @@ gboolean mm_3gpp_parse_ccwa_service_query_response (const gchar  *response,
                                                     gboolean     *status,
                                                     GError      **error);
 
+GArray *mm_3gpp_parse_cscb_response (const char *raw, GError **error);
+
 /* CGATT helpers */
 gchar *mm_3gpp_build_cgatt_set_request (MMModem3gppPacketServiceState state);
 
@@ -549,6 +552,9 @@ gboolean mm_parse_supl_address (const gchar  *supl,
                                 guint16      *out_port,
                                 GError      **error);
 
+gboolean mm_validate_cbs_channels (GArray   *channels,
+                                   GError  **error);
+
 /*****************************************************************************/
 /* SIM specific helpers and utilities */
 /*****************************************************************************/
@@ -589,11 +595,11 @@ guint mm_sim_validate_mnc_length (const guint8  *bin,
 /*****************************************************************************/
 /* Signal quality percentage from different sources */
 
-/* Limit the value betweeen [-113,-51] and scale it to a percentage */
+/* Limit the value between [-113,-51] and scale it to a percentage */
 #define MM_RSSI_TO_QUALITY(rssi)                                   \
     (guint8)(100 - ((CLAMP (rssi, -113, -51) + 51) * 100 / (-113 + 51)))
 
-/* Limit the value betweeen [-110,-60] and scale it to a percentage */
+/* Limit the value between [-110,-60] and scale it to a percentage */
 #define MM_RSRP_TO_QUALITY(rsrp)                                   \
     (guint8)(100 - ((CLAMP (rsrp, -110, -60) + 60) * 100 / (-110 + 60)))
 

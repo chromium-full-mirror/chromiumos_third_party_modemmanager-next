@@ -50,6 +50,7 @@ static SectionInfo section_infos[] = {
     [MMC_S_MODEM_3GPP_USSD]            = { "3GPP USSD"            },
     [MMC_S_MODEM_3GPP_PROFILE_MANAGER] = { "3GPP profile manager" },
     [MMC_S_MODEM_CDMA]                 = { "CDMA"                 },
+    [MMC_S_MODEM_CELL_BROADCAST]       = { "Cell Broadcast"       },
     [MMC_S_MODEM_SIM]                  = { "SIM"                  },
     [MMC_S_MODEM_BEARER]               = { "Bearer"               },
     [MMC_S_MODEM_TIME]                 = { "Time"                 },
@@ -87,6 +88,9 @@ static SectionInfo section_infos[] = {
     [MMC_S_SMS_PROPERTIES]             = { "Properties"           },
     [MMC_S_SIM_GENERAL]                = { "General"              },
     [MMC_S_SIM_PROPERTIES]             = { "Properties"           },
+    [MMC_S_CBM_GENERAL]                = { "General"              },
+    [MMC_S_CBM_CONTENT]                = { "Content"              },
+    [MMC_S_CBM_PROPERTIES]             = { "Properties"           },
 };
 
 /******************************************************************************/
@@ -164,6 +168,7 @@ static FieldInfo field_infos[] = {
     [MMC_F_CDMA_REGISTRATION_CDMA1X]                 = { "modem.cdma.cdma1x-registration-state",            "registration cdma1x",      MMC_S_MODEM_CDMA,                 },
     [MMC_F_CDMA_REGISTRATION_EVDO]                   = { "modem.cdma.evdo-registration-state",              "registration evdo",        MMC_S_MODEM_CDMA,                 },
     [MMC_F_CDMA_ACTIVATION]                          = { "modem.cdma.activation-state",                     "activation",               MMC_S_MODEM_CDMA,                 },
+    [MMC_F_CELL_BROADCAST_CHANNELS]                  = { "modem.cellbroadcast.channels",                    "channels",                 MMC_S_MODEM_CELL_BROADCAST,       },
     [MMC_F_SIM_PATH]                                 = { "modem.generic.sim",                               "primary sim path",         MMC_S_MODEM_SIM,                  },
     [MMC_F_SIM_PRIMARY_SLOT]                         = { "modem.generic.primary-sim-slot",                  NULL,                       MMC_S_MODEM_SIM,                  },
     [MMC_F_SIM_SLOT_PATHS]                           = { "modem.generic.sim-slots",                         "sim slot paths",           MMC_S_MODEM_SIM,                  },
@@ -197,6 +202,7 @@ static FieldInfo field_infos[] = {
     [MMC_F_SIGNAL_LTE_RSRP]                          = { "modem.signal.lte.rsrp",                           "rsrp",                     MMC_S_MODEM_SIGNAL_LTE,           },
     [MMC_F_SIGNAL_LTE_SNR]                           = { "modem.signal.lte.snr",                            "s/n",                      MMC_S_MODEM_SIGNAL_LTE,           },
     [MMC_F_SIGNAL_LTE_ERROR_RATE]                    = { "modem.signal.lte.error-rate",                     "error rate",               MMC_S_MODEM_SIGNAL_LTE,           },
+    [MMC_F_SIGNAL_5G_RSSI]                           = { "modem.signal.5g.rssi",                            "rssi",                     MMC_S_MODEM_SIGNAL_5G,            },
     [MMC_F_SIGNAL_5G_RSRQ]                           = { "modem.signal.5g.rsrq",                            "rsrq",                     MMC_S_MODEM_SIGNAL_5G,            },
     [MMC_F_SIGNAL_5G_RSRP]                           = { "modem.signal.5g.rsrp",                            "rsrp",                     MMC_S_MODEM_SIGNAL_5G,            },
     [MMC_F_SIGNAL_5G_SNR]                            = { "modem.signal.5g.snr",                             "s/n",                      MMC_S_MODEM_SIGNAL_5G,            },
@@ -285,6 +291,11 @@ static FieldInfo field_infos[] = {
     [MMC_F_CALL_AUDIO_FORMAT_ENCODING]               = { "call.audio-format.encoding",                      "encoding",                 MMC_S_CALL_AUDIO_FORMAT,          },
     [MMC_F_CALL_AUDIO_FORMAT_RESOLUTION]             = { "call.audio-format.resolution",                    "resolution",               MMC_S_CALL_AUDIO_FORMAT,          },
     [MMC_F_CALL_AUDIO_FORMAT_RATE]                   = { "call.audio-format.rate",                          "rate",                     MMC_S_CALL_AUDIO_FORMAT,          },
+    [MMC_F_CBM_GENERAL_DBUS_PATH]                    = { "cbm.dbus-path",                                   "path",                     MMC_S_CBM_GENERAL,                },
+    [MMC_F_CBM_CONTENT_TEXT]                         = { "cbm.content.text",                                "text",                     MMC_S_CBM_CONTENT,                },
+    [MMC_F_CBM_PROPERTIES_CHANNEL]                   = { "cbm.properties.channel",                          "channel",                  MMC_S_CBM_PROPERTIES,             },
+    [MMC_F_CBM_PROPERTIES_UPDATE]                    = { "cbm.properties.update",                           "update",                   MMC_S_CBM_PROPERTIES,             },
+    [MMC_F_CBM_PROPERTIES_MESSAGE_CODE]              = { "cbm.properties.message-code",                     "message code",             MMC_S_CBM_PROPERTIES,             },
     [MMC_F_SMS_GENERAL_DBUS_PATH]                    = { "sms.dbus-path",                                   "path",                     MMC_S_SMS_GENERAL,                },
     [MMC_F_SMS_CONTENT_NUMBER]                       = { "sms.content.number",                              "number",                   MMC_S_SMS_CONTENT,                },
     [MMC_F_SMS_CONTENT_TEXT]                         = { "sms.content.text",                                "text",                     MMC_S_SMS_CONTENT,                },
@@ -321,6 +332,7 @@ static FieldInfo field_infos[] = {
     [MMC_F_MODEM_LIST_DBUS_PATH]                     = { "modem-list",                                      "modems",                   MMC_S_UNKNOWN,                    },
     [MMC_F_SMS_LIST_DBUS_PATH]                       = { "modem.messaging.sms",                             "sms messages",             MMC_S_UNKNOWN,                    },
     [MMC_F_CALL_LIST_DBUS_PATH]                      = { "modem.voice.call",                                "calls",                    MMC_S_UNKNOWN,                    },
+    [MMC_F_CBM_LIST_DBUS_PATH]                       = { "modem.cell-broadcast.cbm",                        "cell broadcast messages",  MMC_S_UNKNOWN,                    },
 };
 
 /******************************************************************************/

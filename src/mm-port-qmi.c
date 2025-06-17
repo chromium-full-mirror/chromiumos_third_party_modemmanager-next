@@ -945,7 +945,7 @@ delete_all_links_ready (QmiDevice    *device,
 
     /* expected data format only applicable to qmi_wwan */
     if (g_strcmp0 (self->priv->net_driver, "qmi_wwan") == 0) {
-        mm_obj_dbg (self, "reseting expected kernel data format to 802.3 in data interface '%s'",
+        mm_obj_dbg (self, "resetting expected kernel data format to 802.3 in data interface '%s'",
                     mm_port_get_device (MM_PORT (ctx->data)));
         if (!qmi_device_set_expected_data_format (ctx->device, QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3, &error)) {
             g_task_return_error (task, error);
@@ -2369,7 +2369,7 @@ qmi_device_open_second_ready (QmiDevice    *qmi_device,
         /* Otherwise, fatal */
         ctx->error = g_steal_pointer (&error);
     } else {
-        /* If the open with CTL data format is sucessful, update all settings
+        /* If the open with CTL data format is successful, update all settings
          * that we would have received with the internal setup data format
          * process */
         self->priv->kernel_data_modes = ctx->kernel_data_modes;
