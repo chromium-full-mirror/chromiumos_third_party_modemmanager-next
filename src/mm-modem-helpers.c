@@ -5552,3 +5552,24 @@ mm_string_uint_map_lookup (const MMStringUintMap *map,
     }
     return default_value;
 }
+
+/*****************************************************************************/
+
+void
+mm_utils_remove_control_characters (gchar *str)
+{
+    gchar *src = str;
+    gchar *dst = str;
+
+    if (!str)
+        return;
+
+    while (*src) {
+        if (((guint8)*src) >= 0x20) {
+            *dst = *src;
+            dst++;
+        }
+        src++;
+    }
+    *dst = '\0';
+}
