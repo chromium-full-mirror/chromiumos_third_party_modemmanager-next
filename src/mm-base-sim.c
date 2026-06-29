@@ -1531,12 +1531,34 @@ handle_set_preferred_networks_ready (MMBaseSim *self,
     handle_set_preferred_networks_context_free (ctx);
 }
 
+static gboolean
+validate_networks_list (GList   *networks_list,
+                        GError **error)
+{
+    GList *l;
+
+    for (l = networks_list; l; l = g_list_next (l)) {
+        MMSimPreferredNetwork *network = (MMSimPreferredNetwork *)l->data;
+        const gchar *operator_code;
+
+        operator_code = mm_sim_preferred_network_get_operator_code (network);
+        if (!mm_utils_is_numeric (operator_code)) {
+            g_set_error (error, MM_CORE_ERROR, MM_CORE_ERROR_INVALID_ARGS,
+                         "Invalid operator code: '%s'", operator_code);
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
 static void
 handle_set_preferred_networks_auth_ready (MMBaseModem *modem,
                                           GAsyncResult *res,
                                           HandleSetPreferredNetworksContext *ctx)
 {
     GError *error = NULL;
+    GList  *networks_list = NULL;
 
     if (!mm_base_modem_authorize_finish (modem, res, &error)) {
         mm_dbus_method_invocation_take_error (ctx->invocation, error);
@@ -1566,12 +1588,22 @@ handle_set_preferred_networks_auth_ready (MMBaseModem *modem,
         return;
     }
 
+    networks_list = mm_sim_preferred_network_list_new_from_variant (ctx->networks);
+    if (!validate_networks_list (networks_list, &error)) {
+        g_list_free_full (networks_list, g_object_unref);
+        mm_dbus_method_invocation_take_error (ctx->invocation, error);
+        handle_set_preferred_networks_context_free (ctx);
+        return;
+    }
+
     mm_obj_info (ctx->self, "processing user request to set preferred networks...");
     MM_BASE_SIM_GET_CLASS (ctx->self)->set_preferred_networks (
             ctx->self,
-            mm_sim_preferred_network_list_new_from_variant (ctx->networks),
+            networks_list,
             (GAsyncReadyCallback)handle_set_preferred_networks_ready,
             ctx);
+
+    g_list_free_full (networks_list, g_object_unref);
 }
 
 static gboolean
