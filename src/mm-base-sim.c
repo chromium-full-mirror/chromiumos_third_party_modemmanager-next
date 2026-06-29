@@ -250,6 +250,13 @@ handle_change_pin_auth_ready (MMBaseModem *modem,
         return;
     }
 
+    if (!mm_utils_is_numeric (ctx->old_pin) || !mm_utils_is_numeric (ctx->new_pin)) {
+        mm_dbus_method_invocation_return_error_literal (ctx->invocation, MM_CORE_ERROR, MM_CORE_ERROR_INVALID_ARGS,
+                                                       "PIN must be numeric");
+        handle_change_pin_context_free (ctx);
+        return;
+    }
+
     /* If changing PIN is not implemented, report an error */
     if (!MM_BASE_SIM_GET_CLASS (ctx->self)->change_pin ||
         !MM_BASE_SIM_GET_CLASS (ctx->self)->change_pin_finish) {
@@ -429,6 +436,13 @@ handle_enable_pin_auth_ready (MMBaseModem *modem,
 
     if (!mm_base_modem_authorize_finish (modem, res, &error)) {
         mm_dbus_method_invocation_take_error (ctx->invocation, error);
+        handle_enable_pin_context_free (ctx);
+        return;
+    }
+
+    if (!mm_utils_is_numeric (ctx->pin)) {
+        mm_dbus_method_invocation_return_error_literal (ctx->invocation, MM_CORE_ERROR, MM_CORE_ERROR_INVALID_ARGS,
+                                                       "PIN must be numeric");
         handle_enable_pin_context_free (ctx);
         return;
     }
@@ -856,6 +870,13 @@ handle_send_pin_auth_ready (MMBaseModem *modem,
         return;
     }
 
+    if (!mm_utils_is_numeric (ctx->pin)) {
+        mm_dbus_method_invocation_return_error_literal (ctx->invocation, MM_CORE_ERROR, MM_CORE_ERROR_INVALID_ARGS,
+                                                       "PIN must be numeric");
+        handle_send_pin_context_free (ctx);
+        return;
+    }
+
     if (!mm_gdbus_sim_get_active (MM_GDBUS_SIM (ctx->self))) {
         mm_dbus_method_invocation_return_error_literal (ctx->invocation, MM_CORE_ERROR, MM_CORE_ERROR_UNSUPPORTED,
                                                         "Cannot send PIN: SIM not currently active");
@@ -956,6 +977,13 @@ handle_send_puk_auth_ready (MMBaseModem *modem,
 
     if (!mm_base_modem_authorize_finish (modem, res, &error)) {
         mm_dbus_method_invocation_take_error (ctx->invocation, error);
+        handle_send_puk_context_free (ctx);
+        return;
+    }
+
+    if (!mm_utils_is_numeric (ctx->puk) || !mm_utils_is_numeric (ctx->new_pin)) {
+        mm_dbus_method_invocation_return_error_literal (ctx->invocation, MM_CORE_ERROR, MM_CORE_ERROR_INVALID_ARGS,
+                                                       "PIN/PUK must be numeric");
         handle_send_puk_context_free (ctx);
         return;
     }
