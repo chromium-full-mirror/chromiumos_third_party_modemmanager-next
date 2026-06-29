@@ -23,6 +23,7 @@
 #include "mm-call-list.h"
 #include "mm-error-helpers.h"
 #include "mm-log-object.h"
+#include "mm-modem-helpers.h"
 
 #define CALL_LIST_POLLING_CONTEXT_TAG "voice-call-list-polling-context-tag"
 #define IN_CALL_EVENT_CONTEXT_TAG     "voice-in-call-event-context-tag"
@@ -171,14 +172,9 @@ create_outgoing_call_from_properties (MMIfaceModemVoice  *self,
     const gchar *number;
 
     /* Don't create CALL from properties if either number is missing */
-    number = mm_call_properties_get_number (properties) ;
-    if (!number) {
-        g_set_error (error,
-                     MM_CORE_ERROR,
-                     MM_CORE_ERROR_INVALID_ARGS,
-                     "Cannot create call: mandatory parameter 'number' is missing");
+    number = mm_call_properties_get_number (properties);
+    if (!mm_utils_is_valid_dial_number (number, error))
         return NULL;
-    }
 
     /* Create a call object as defined by the interface */
     g_assert (MM_IFACE_MODEM_VOICE_GET_IFACE (self)->create_call != NULL);
